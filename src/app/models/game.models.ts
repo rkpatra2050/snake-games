@@ -1,0 +1,98 @@
+export interface Vector2D {
+  x: number;
+  y: number;
+}
+
+export interface SnakeSegment {
+  x: number;
+  y: number;
+}
+
+export interface Animal {
+  id: number;
+  x: number;
+  y: number;
+  type: 'rabbit' | 'frog' | 'bird' | 'mouse' | 'butterfly';
+  emoji: string;
+  points: number;
+  growth: number;
+  animFrame: number;
+  bobOffset: number;
+  speed: number;
+  vx: number;
+  vy: number;
+  alive: boolean;
+  eatAnimation: number;
+}
+
+export interface Hunter {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  direction: 'left' | 'right';
+  state: 'patrol' | 'alert' | 'chase' | 'attack';
+  sightRange: number;
+  sightAngle: number;
+  patrolPath: Vector2D[];
+  patrolIndex: number;
+  alertTimer: number;
+  animFrame: number;
+  stepTimer: number;
+  flashTimer: number;
+}
+
+export interface Tree {
+  x: number;
+  y: number;
+  scale: number;
+  type: number;
+  swayOffset: number;
+}
+
+export interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  color: string;
+  size: number;
+  type: 'leaf' | 'sparkle' | 'blood' | 'star' | 'smoke';
+}
+
+export interface Grass {
+  x: number;
+  y: number;
+  height: number;
+  swayOffset: number;
+  color: string;
+}
+
+export interface Bush {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+export interface Cloud {
+  x: number;
+  y: number;
+  speed: number;
+  scale: number;
+  opacity: number;
+}
+
+export type GameState = 'menu' | 'playing' | 'paused' | 'won' | 'lost';
+export type Direction = 'up' | 'down' | 'left' | 'right';
+
+export interface GameConfig {
+  cellSize: number;
+  cols: number;
+  rows: number;
+  snakeSpeed: number;
+  hunterCount: number;
+  animalCount: number;
+}
