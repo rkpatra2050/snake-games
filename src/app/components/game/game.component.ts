@@ -200,39 +200,27 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
   resizeCanvas() {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    this.isMobile = vw <= 768 || 'ontouchstart' in window;
+    this.isMobile = vw <= 900 || 'ontouchstart' in window;
 
-    if (this.isMobile) {
-      // On mobile: canvas fills full width, leave room for D-pad
-      const dpadH = 180;
-      const availH = vh - dpadH - 50; // 50px for HUD breathing room
-      const ratio = 900 / 600; // fixed game aspect ratio
-      let w = vw;
-      let h = w / ratio;
-      if (h > availH) {
-        h = availH;
-        w = h * ratio;
-      }
-      this.canvasWidth  = Math.round(w);
-      this.canvasHeight = Math.round(h);
-    } else {
-      // Desktop: fit within viewport with padding
-      const maxW = Math.min(vw - 40, 1200);
-      const maxH = Math.min(vh - 40, 700);
-      const ratio = 900 / 600;
-      let w = maxW;
-      let h = w / ratio;
-      if (h > maxH) { h = maxH; w = h * ratio; }
-      this.canvasWidth  = Math.round(w);
-      this.canvasHeight = Math.round(h);
+    // Always fill the full viewport — the canvas is the game world
+    const ratio = 900 / 600;
+    let w = vw;
+    let h = vw / ratio;
+
+    // If height exceeds viewport, shrink to fit height
+    if (h > vh) {
+      h = vh;
+      w = vh * ratio;
     }
+
+    this.canvasWidth  = Math.round(w);
+    this.canvasHeight = Math.round(h);
 
     // Apply to canvas element if available
     if (this.canvasRef?.nativeElement) {
       const canvas = this.canvasRef.nativeElement;
       canvas.width  = this.canvasWidth;
       canvas.height = this.canvasHeight;
-      // Keep the engine world dimensions synced
       this.engine.canvas = canvas;
       this.engine.ctx    = canvas.getContext('2d')!;
     }
@@ -246,17 +234,17 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
 
   startGame() {
     this.resizeCanvas();
-    this.engine.overlayVisible = false;
-    this.engine.startGame();
-    this.cdr.detectChanges();
+    // Register callbacks BEFORE starting the engine so they're ready on first death
     this.engine.onPlayAgain = () => { this.zone.run(() => this.startGame()); };
     this.engine.onGoMenu    = () => { this.zone.run(() => this.goToMenu()); };
+    this.engine.startGame();
+    this.cdr.detectChanges();
     setTimeout(() => {
       if (this.canvasRef?.nativeElement) {
         this.engine.canvas = this.canvasRef.nativeElement;
         this.engine.ctx    = this.canvasRef.nativeElement.getContext('2d')!;
       }
-    }, 50);
+    }, 30);
   }
 
   onCanvasClick(event: MouseEvent) {
@@ -323,6 +311,10 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
 
   goToMenu() {
     this.engine.stopLoop();
+    if ((this.engine as any)._overlayTimer) {
+      clearTimeout((this.engine as any)._overlayTimer);
+      (this.engine as any)._overlayTimer = null;
+    }
     this.engine.overlayVisible = false;
     this.engine.gameState = 'menu';
     this.cdr.detectChanges();

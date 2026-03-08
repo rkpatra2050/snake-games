@@ -250,6 +250,8 @@ export class GameEngineService {
   }
 
   startGame() {
+    // Cancel any pending "show overlay" timer from a previous death
+    if (this._overlayTimer) { clearTimeout(this._overlayTimer); this._overlayTimer = null; }
     this.score = 0;
     this.gameState = 'playing';
     this.deathTimer = 0;
@@ -647,11 +649,15 @@ export class GameEngineService {
     this.spawnDeathParticles(this.deathPosition.x, this.deathPosition.y);
     this.deathTimer = 0;
     this.saveHighScore();
-    // Show overlay after brief particle effect delay
-    setTimeout(() => {
+    // Clear any previous pending overlay timer, then show after brief particle delay
+    if (this._overlayTimer) clearTimeout(this._overlayTimer);
+    this._overlayTimer = setTimeout(() => {
       this.overlayVisible = true;
-    }, 600);
+      this._overlayTimer = null;
+    }, 800);
   }
+
+  private _overlayTimer: any = null;
 
   triggerWin() {
     this.snakeAlive = false;
@@ -2570,9 +2576,12 @@ export class GameEngineService {
     const { x: ax, y: ay, w: aw, h: ah } = this.overlayPlayAgainBtn;
     const { x: mx, y: my, w: mw, h: mh } = this.overlayMenuBtn;
     if (ex >= ax && ex <= ax + aw && ey >= ay && ey <= ay + ah) {
+      // Stop the loop first, then let the component handle navigation
+      this.stopLoop();
       this.overlayVisible = false;
       if (this.onPlayAgain) this.onPlayAgain();
     } else if (ex >= mx && ex <= mx + mw && ey >= my && ey <= my + mh) {
+      this.stopLoop();
       this.overlayVisible = false;
       if (this.onGoMenu) this.onGoMenu();
     }
