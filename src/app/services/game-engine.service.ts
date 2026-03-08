@@ -2410,169 +2410,170 @@ export class GameEngineService {
     const H   = this.canvas.height;
     const cx  = W / 2;
     const cy  = H / 2;
-    const t   = this.animTime * 0.002;
-
-    // Scale factor relative to reference 900px width
-    const sf = Math.min(W / 900, H / 600);
 
     // ── Dark vignette ──────────────────────────────────────────────────────
-    const vign = ctx.createRadialGradient(cx, cy, 60 * sf, cx, cy, W * 0.75);
-    vign.addColorStop(0,   'rgba(0,0,0,0.55)');
-    vign.addColorStop(1,   'rgba(0,0,0,0.82)');
-    ctx.fillStyle = vign;
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.fillRect(0, 0, W, H);
 
-    // ── Red blood splatter rings ────────────────────────────────────────────
-    for (let r = 0; r < 3; r++) {
-      const ring = ctx.createRadialGradient(cx, cy, (20 + r * 40) * sf, cx, cy, (70 + r * 50) * sf);
-      ring.addColorStop(0,   `rgba(180,0,0,${0.18 - r * 0.04})`);
-      ring.addColorStop(1,   'rgba(180,0,0,0)');
-      ctx.fillStyle = ring;
-      ctx.fillRect(0, 0, W, H);
-    }
+    // ── Panel card — always fills 88% of screen width, max 480px ──────────
+    const panW = Math.min(W * 0.88, 480);
+    // Row heights in actual pixels, capped so they fit any screen
+    const iconH   = Math.min(64, H * 0.1);
+    const titleH  = Math.min(52, H * 0.09);
+    const msgH    = Math.min(20, H * 0.04);
+    const statsH  = Math.min(64, H * 0.11);
+    const btnH    = Math.min(52, H * 0.09);
+    const padV    = Math.min(20, H * 0.03);
+    const gap     = Math.min(14, H * 0.025);
 
-    // ── Panel card ─────────────────────────────────────────────────────────
-    const panW = Math.min(480 * sf, W * 0.92);
-    const panH = 340 * sf;
+    const panH = padV + iconH + gap + titleH + gap + msgH + gap + statsH + gap + btnH + padV;
     const panX = cx - panW / 2;
     const panY = cy - panH / 2;
 
     // Card shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.beginPath();
-    ctx.roundRect(panX + 8, panY + 10, panW, panH, 20 * sf);
+    ctx.roundRect(panX + 6, panY + 8, panW, panH, 18);
     ctx.fill();
 
-    // Card body — dark jungle texture
+    // Card body
     const cardGrad = ctx.createLinearGradient(panX, panY, panX, panY + panH);
     cardGrad.addColorStop(0,   '#0d1a08');
     cardGrad.addColorStop(0.4, '#12220c');
     cardGrad.addColorStop(1,   '#080f05');
     ctx.fillStyle = cardGrad;
     ctx.beginPath();
-    ctx.roundRect(panX, panY, panW, panH, 20 * sf);
+    ctx.roundRect(panX, panY, panW, panH, 18);
     ctx.fill();
 
     // Card border — red glow
     ctx.save();
     ctx.shadowColor = '#ff0000';
-    ctx.shadowBlur  = 18 * sf;
+    ctx.shadowBlur  = 16;
     ctx.strokeStyle = '#cc1111';
-    ctx.lineWidth   = 2.5 * sf;
+    ctx.lineWidth   = 2;
     ctx.beginPath();
-    ctx.roundRect(panX, panY, panW, panH, 20 * sf);
+    ctx.roundRect(panX, panY, panW, panH, 18);
     ctx.stroke();
     ctx.restore();
 
-    // ── Skull / hunter icon ────────────────────────────────────────────────
-    ctx.font = `${Math.round(60 * sf)}px serif`;
+    let curY = panY + padV;
+
+    // ── Icon ───────────────────────────────────────────────────────────────
+    const iconFontSize = Math.round(iconH * 0.85);
+    ctx.font = `${iconFontSize}px serif`;
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const iconBob = Math.sin(t * 3) * 4 * sf;
-    ctx.fillText(this.killedBy === 'hunter' ? '🎯' : '💀', cx, panY + 64 * sf + iconBob);
+    ctx.textBaseline = 'top';
+    ctx.fillText(this.killedBy === 'hunter' ? '🎯' : '💀', cx, curY);
+    curY += iconH + gap;
 
     // ── GAME OVER title ────────────────────────────────────────────────────
+    const titleFontSize = Math.min(Math.round(titleH * 0.85), Math.round(panW * 0.11));
     ctx.save();
     ctx.shadowColor = '#ff0000';
-    ctx.shadowBlur  = 30 * sf;
-    ctx.font = `bold ${Math.round(52 * sf)}px "Arial Black", Arial`;
-    // Red gradient text
-    const goGrad = ctx.createLinearGradient(cx - 160 * sf, 0, cx + 160 * sf, 0);
-    goGrad.addColorStop(0, '#ff2222');
-    goGrad.addColorStop(0.5, '#ff6666');
-    goGrad.addColorStop(1, '#ff2222');
+    ctx.shadowBlur  = 20;
+    ctx.font = `bold ${titleFontSize}px "Arial Black", Arial`;
+    const goGrad = ctx.createLinearGradient(cx - panW * 0.4, 0, cx + panW * 0.4, 0);
+    goGrad.addColorStop(0,   '#ff2222');
+    goGrad.addColorStop(0.5, '#ff7777');
+    goGrad.addColorStop(1,   '#ff2222');
     ctx.fillStyle = goGrad;
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText('GAME  OVER', cx, panY + 128 * sf);
+    ctx.textBaseline = 'top';
+    ctx.fillText('GAME  OVER', cx, curY);
     ctx.restore();
+    curY += titleH + gap;
 
-    // ── Kill message ──────────────────────────────────────────────────────
-    ctx.font = `${Math.round(16 * sf)}px Arial`;
+    // ── Kill message ───────────────────────────────────────────────────────
+    const msgFontSize = Math.min(Math.round(msgH * 0.8), Math.round(panW * 0.038));
+    ctx.font = `${msgFontSize}px Arial`;
     ctx.fillStyle = '#ffbbbb';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
+    ctx.textBaseline = 'top';
     const msg = this.killedBy === 'hunter'
-      ? '🔫  A hunter spotted you and pulled the trigger!'
-      : '💥  You crashed into the jungle boundary!';
-    ctx.fillText(msg, cx, panY + 158 * sf);
+      ? '🔫  A hunter spotted you!'
+      : '💥  You hit the jungle boundary!';
+    ctx.fillText(msg, cx, curY);
+    curY += msgH + gap;
 
-    // ── Stats row ─────────────────────────────────────────────────────────
-    const statsY = panY + 195 * sf;
+    // ── Stats row ──────────────────────────────────────────────────────────
     const statBoxes = [
-      { label: 'SCORE',       value: String(this.score) },
-      { label: 'LENGTH',      value: String(this.snake.length) },
-      { label: 'BEST',        value: String(this.highScore) },
+      { label: 'SCORE',  value: String(this.score) },
+      { label: 'LENGTH', value: String(this.snake.length) },
+      { label: 'BEST',   value: String(this.highScore) },
     ];
-    const boxW = 120 * sf, boxH = 54 * sf, gap = 12 * sf;
-    const totalBoxW = statBoxes.length * boxW + (statBoxes.length - 1) * gap;
-    const boxStartX = cx - totalBoxW / 2;
+    const statGap  = 8;
+    const boxW     = (panW - statGap * 4) / 3;
+    const boxStartX = panX + statGap * 1.5;
 
     statBoxes.forEach((s, i) => {
-      const bx = boxStartX + i * (boxW + gap);
-      // Box bg
-      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      const bx = boxStartX + i * (boxW + statGap);
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
       ctx.beginPath();
-      ctx.roundRect(bx, statsY, boxW, boxH, 8 * sf);
+      ctx.roundRect(bx, curY, boxW, statsH, 8);
       ctx.fill();
       ctx.strokeStyle = 'rgba(255,100,100,0.3)';
       ctx.lineWidth = 1;
       ctx.stroke();
-      // Value
-      ctx.font = `bold ${Math.round(22 * sf)}px "Courier New"`;
+
+      const valFontSize = Math.min(Math.round(statsH * 0.38), Math.round(boxW * 0.28));
+      ctx.font = `bold ${valFontSize}px "Courier New"`;
       ctx.fillStyle = '#ffd700';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillText(s.value, bx + boxW / 2, statsY + 30 * sf);
-      // Label
-      ctx.font = `${Math.round(10 * sf)}px Arial`;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(s.value, bx + boxW / 2, curY + statsH * 0.38);
+
+      const lblFontSize = Math.max(9, Math.round(statsH * 0.2));
+      ctx.font = `${lblFontSize}px Arial`;
       ctx.fillStyle = '#888';
-      ctx.fillText(s.label, bx + boxW / 2, statsY + 46 * sf);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(s.label, bx + boxW / 2, curY + statsH * 0.75);
     });
+    curY += statsH + gap;
 
-    // ── Buttons ───────────────────────────────────────────────────────────
-    const btnY  = panY + panH - 70 * sf;
-    const btnW  = 185 * sf;
-    const btnH  = 46 * sf;
-    const btn1X = cx - btnW - 10 * sf;
-    const btn2X = cx + 10 * sf;
+    // ── Buttons side by side ───────────────────────────────────────────────
+    const totalBtnW = panW - 24;
+    const halfBtnW  = (totalBtnW - 10) / 2;
+    const btn1X = panX + 12;
+    const btn2X = btn1X + halfBtnW + 10;
+    const btnFontSize = Math.min(14, Math.round(btnH * 0.35));
 
-    this.overlayPlayAgainBtn = { x: btn1X, y: btnY, w: btnW, h: btnH };
-    this.overlayMenuBtn      = { x: btn2X, y: btnY, w: btnW, h: btnH };
+    this.overlayPlayAgainBtn = { x: btn1X, y: curY, w: halfBtnW, h: btnH };
+    this.overlayMenuBtn      = { x: btn2X, y: curY, w: halfBtnW, h: btnH };
 
-    // Play Again button
-    const b1Grad = ctx.createLinearGradient(btn1X, btnY, btn1X, btnY + btnH);
-    b1Grad.addColorStop(0,   '#2e7d32');
-    b1Grad.addColorStop(1,   '#1b5e20');
+    // Play Again
+    const b1Grad = ctx.createLinearGradient(btn1X, curY, btn1X, curY + btnH);
+    b1Grad.addColorStop(0, '#2e7d32');
+    b1Grad.addColorStop(1, '#1b5e20');
     ctx.fillStyle = b1Grad;
     ctx.beginPath();
-    ctx.roundRect(btn1X, btnY, btnW, btnH, 10 * sf);
+    ctx.roundRect(btn1X, curY, halfBtnW, btnH, 10);
     ctx.fill();
     ctx.strokeStyle = '#4caf50';
-    ctx.lineWidth = 1.8 * sf;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.font = `bold ${Math.round(16 * sf)}px Arial`;
+    ctx.font = `bold ${btnFontSize}px Arial`;
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🔄  Play Again', btn1X + btnW / 2, btnY + btnH / 2);
+    ctx.fillText('🔄 Play Again', btn1X + halfBtnW / 2, curY + btnH / 2);
 
-    // Menu button
-    const b2Grad = ctx.createLinearGradient(btn2X, btnY, btn2X, btnY + btnH);
-    b2Grad.addColorStop(0,   '#37474f');
-    b2Grad.addColorStop(1,   '#263238');
+    // Main Menu
+    const b2Grad = ctx.createLinearGradient(btn2X, curY, btn2X, curY + btnH);
+    b2Grad.addColorStop(0, '#37474f');
+    b2Grad.addColorStop(1, '#263238');
     ctx.fillStyle = b2Grad;
     ctx.beginPath();
-    ctx.roundRect(btn2X, btnY, btnW, btnH, 10 * sf);
+    ctx.roundRect(btn2X, curY, halfBtnW, btnH, 10);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 1.5 * sf;
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.font = `bold ${Math.round(16 * sf)}px Arial`;
+    ctx.font = `bold ${btnFontSize}px Arial`;
     ctx.fillStyle = '#cccccc';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🏠  Main Menu', btn2X + btnW / 2, btnY + btnH / 2);
+    ctx.fillText('🏠 Main Menu', btn2X + halfBtnW / 2, curY + btnH / 2);
   }
 
   /** Call this from the component's canvas click handler */
