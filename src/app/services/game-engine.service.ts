@@ -256,6 +256,8 @@ export class GameEngineService {
     this.winTimer = 0;
     this.killedBy = null;
     this.particles = [];
+    this.overlayVisible = false;
+    this.snakeAlive = true;
     this.buildWorld();
     this.startLoop();
   }
@@ -302,8 +304,17 @@ export class GameEngineService {
   }
 
   update(dt: number) {
-    if (this.gameState !== 'playing') return;
+    // Always tick animTime and particles so overlays animate correctly
     this.animTime += dt;
+
+    if (this.gameState === 'lost') {
+      this.updateParticles(dt);
+      this.deathTimer += dt;
+      return;
+    }
+
+    if (this.gameState !== 'playing') return;
+
     this.frameCount++;
     this.fpsTimer += dt;
     if (this.fpsTimer >= 1000) {
@@ -406,11 +417,9 @@ export class GameEngineService {
         case 'attack': break;
       }
 
-      // Kill snake
-      if (this.snakeAlive && h.state === 'attack' || (this.snakeAlive && dist < 20)) {
-        if (dist < 30) {
-          this.killSnake(h);
-        }
+      // Kill snake on contact — any hunter within 35px kills immediately
+      if (this.snakeAlive && dist < 35) {
+        this.killSnake(h);
       }
     });
   }
@@ -450,11 +459,7 @@ export class GameEngineService {
   }
 
   updateSnake(dt: number) {
-    if (!this.snakeAlive) {
-      this.deathTimer += dt;
-      // Keep rendering game world while overlay is shown — no auto-transition
-      return;
-    }
+    if (!this.snakeAlive) return;
 
     this.snakeMoveTimer += dt;
     this.snakeEyeBlinkTimer += dt;
@@ -636,15 +641,16 @@ export class GameEngineService {
     if (!this.snakeAlive) return;
     this.snakeAlive = false;
     this.killedBy = hunter ? 'hunter' : null;
+    this.gameState = 'lost';
     const head = this.snake[0];
     this.deathPosition = { x: head.x * this.config.cellSize, y: head.y * this.config.cellSize };
     this.spawnDeathParticles(this.deathPosition.x, this.deathPosition.y);
     this.deathTimer = 0;
-    // Show overlay immediately after short delay for particles
+    this.saveHighScore();
+    // Show overlay after brief particle effect delay
     setTimeout(() => {
       this.overlayVisible = true;
-      this.saveHighScore();
-    }, 800);
+    }, 600);
   }
 
   triggerWin() {
@@ -718,7 +724,7 @@ export class GameEngineService {
     this.renderHUD();
 
     if (this.gameState === 'paused') this.renderPauseOverlay();
-    if (this.overlayVisible && !this.snakeAlive) this.renderDeathOverlay();
+    if (this.overlayVisible) this.renderDeathOverlay();
   }
 
   renderWorldBackground() {
@@ -2312,64 +2318,78 @@ export class GameEngineService {
   renderHUD() {
     const ctx = this.ctx;
     const W = this.canvas.width;
+    const H = this.canvas.height;
+
+    // Scale HUD text with canvas
+    const sf = Math.min(W / 900, H / 600);
+    const baseFontSize  = Math.max(11, Math.round(14 * sf));
+    const smallFontSize = Math.max(8, Math.round(10 * sf));
+    const hudH = Math.round(50 * sf);
 
     // HUD Background bar
-    const hudGrad = ctx.createLinearGradient(0, 0, 0, 50);
+    const hudGrad = ctx.createLinearGradient(0, 0, 0, hudH);
     hudGrad.addColorStop(0, 'rgba(0,0,0,0.7)');
     hudGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = hudGrad;
-    ctx.fillRect(0, 0, W, 50);
+    ctx.fillRect(0, 0, W, hudH);
+
+    const row1 = Math.round(22 * sf);
+    const row2 = Math.round(40 * sf);
+    const pad  = Math.round(15 * sf);
 
     // Score
     ctx.fillStyle = '#fcf';
-    ctx.font = 'bold 14px "Courier New"';
+    ctx.font = `bold ${baseFontSize}px "Courier New"`;
     ctx.textAlign = 'left';
-    ctx.fillText(`🏆 Score: ${this.score}`, 15, 22);
+    ctx.fillText(`🏆 Score: ${this.score}`, pad, row1);
 
     // High Score
     ctx.fillStyle = '#fc0';
-    ctx.fillText(`⭐ Best: ${this.highScore}`, 15, 40);
+    ctx.fillText(`⭐ Best: ${this.highScore}`, pad, row2);
 
     // Snake length
     ctx.fillStyle = '#8f8';
     ctx.textAlign = 'center';
-    ctx.fillText(`🐍 Length: ${this.snake.length}`, W / 2, 22);
+    ctx.fillText(`🐍 Length: ${this.snake.length}`, W / 2, row1);
 
     // Animals remaining
     const alive = this.animals.filter(a => a.alive).length;
     ctx.fillStyle = '#f84';
-    ctx.fillText(`🐾 Prey: ${alive}`, W / 2, 40);
+    ctx.fillText(`🐾 Prey: ${alive}`, W / 2, row2);
 
     // Direction indicator
     ctx.fillStyle = '#adf';
     ctx.textAlign = 'right';
-    ctx.fillText(`➡ Flag: ${Math.round(Math.abs(this.flagX - (this.snake[0]?.x ?? 0) * this.config.cellSize))}px`, W - 15, 22);
+    ctx.fillText(`➡ Flag: ${Math.round(Math.abs(this.flagX - (this.snake[0]?.x ?? 0) * this.config.cellSize))}px`, W - pad, row1);
 
     // FPS (debug)
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font = '10px monospace';
-    ctx.fillText(`FPS: ${this.fps}`, W - 15, 40);
+    ctx.font = `${smallFontSize}px monospace`;
+    ctx.fillText(`FPS: ${this.fps}`, W - pad, row2);
 
-    // Controls reminder
+    // Controls reminder — show keyboard on desktop, D-pad hint on mobile
+    const isMobile = W < 600;
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = '10px Arial';
+    ctx.font = `${smallFontSize}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('WASD / Arrow Keys to move | P to pause', W / 2, this.canvas.height - 8);
+    const hint = isMobile ? '👆 Swipe or use D-pad below' : 'WASD / Arrow Keys to move | P to pause';
+    ctx.fillText(hint, W / 2, H - Math.round(8 * sf));
   }
 
   renderPauseOverlay() {
     const ctx = this.ctx;
     const W = this.canvas.width;
     const H = this.canvas.height;
+    const sf = Math.min(W / 900, H / 600);
     ctx.fillStyle = 'rgba(0,20,0,0.6)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 36px Arial';
+    ctx.font = `bold ${Math.round(36 * sf)}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('⏸ PAUSED', W / 2, H / 2 - 20);
-    ctx.font = '18px Arial';
+    ctx.fillText('⏸ PAUSED', W / 2, H / 2 - 20 * sf);
+    ctx.font = `${Math.round(18 * sf)}px Arial`;
     ctx.fillStyle = '#aaa';
-    ctx.fillText('Press P or ESC to resume', W / 2, H / 2 + 20);
+    ctx.fillText('Press P or ESC to resume', W / 2, H / 2 + 20 * sf);
   }
 
   /** Full-canvas GAME OVER overlay drawn right on the game world */
@@ -2381,8 +2401,11 @@ export class GameEngineService {
     const cy  = H / 2;
     const t   = this.animTime * 0.002;
 
+    // Scale factor relative to reference 900px width
+    const sf = Math.min(W / 900, H / 600);
+
     // ── Dark vignette ──────────────────────────────────────────────────────
-    const vign = ctx.createRadialGradient(cx, cy, 60, cx, cy, W * 0.75);
+    const vign = ctx.createRadialGradient(cx, cy, 60 * sf, cx, cy, W * 0.75);
     vign.addColorStop(0,   'rgba(0,0,0,0.55)');
     vign.addColorStop(1,   'rgba(0,0,0,0.82)');
     ctx.fillStyle = vign;
@@ -2390,7 +2413,7 @@ export class GameEngineService {
 
     // ── Red blood splatter rings ────────────────────────────────────────────
     for (let r = 0; r < 3; r++) {
-      const ring = ctx.createRadialGradient(cx, cy, 20 + r * 40, cx, cy, 70 + r * 50);
+      const ring = ctx.createRadialGradient(cx, cy, (20 + r * 40) * sf, cx, cy, (70 + r * 50) * sf);
       ring.addColorStop(0,   `rgba(180,0,0,${0.18 - r * 0.04})`);
       ring.addColorStop(1,   'rgba(180,0,0,0)');
       ctx.fillStyle = ring;
@@ -2398,14 +2421,15 @@ export class GameEngineService {
     }
 
     // ── Panel card ─────────────────────────────────────────────────────────
-    const panW = 480, panH = 340;
+    const panW = Math.min(480 * sf, W * 0.92);
+    const panH = 340 * sf;
     const panX = cx - panW / 2;
     const panY = cy - panH / 2;
 
     // Card shadow
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.beginPath();
-    ctx.roundRect(panX + 8, panY + 10, panW, panH, 20);
+    ctx.roundRect(panX + 8, panY + 10, panW, panH, 20 * sf);
     ctx.fill();
 
     // Card body — dark jungle texture
@@ -2415,61 +2439,61 @@ export class GameEngineService {
     cardGrad.addColorStop(1,   '#080f05');
     ctx.fillStyle = cardGrad;
     ctx.beginPath();
-    ctx.roundRect(panX, panY, panW, panH, 20);
+    ctx.roundRect(panX, panY, panW, panH, 20 * sf);
     ctx.fill();
 
     // Card border — red glow
     ctx.save();
     ctx.shadowColor = '#ff0000';
-    ctx.shadowBlur  = 18;
+    ctx.shadowBlur  = 18 * sf;
     ctx.strokeStyle = '#cc1111';
-    ctx.lineWidth   = 2.5;
+    ctx.lineWidth   = 2.5 * sf;
     ctx.beginPath();
-    ctx.roundRect(panX, panY, panW, panH, 20);
+    ctx.roundRect(panX, panY, panW, panH, 20 * sf);
     ctx.stroke();
     ctx.restore();
 
     // ── Skull / hunter icon ────────────────────────────────────────────────
-    ctx.font = '60px serif';
+    ctx.font = `${Math.round(60 * sf)}px serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const iconBob = Math.sin(t * 3) * 4;
-    ctx.fillText(this.killedBy === 'hunter' ? '🎯' : '💀', cx, panY + 64 + iconBob);
+    const iconBob = Math.sin(t * 3) * 4 * sf;
+    ctx.fillText(this.killedBy === 'hunter' ? '🎯' : '💀', cx, panY + 64 * sf + iconBob);
 
     // ── GAME OVER title ────────────────────────────────────────────────────
     ctx.save();
     ctx.shadowColor = '#ff0000';
-    ctx.shadowBlur  = 30;
-    ctx.font = 'bold 52px "Arial Black", Arial';
+    ctx.shadowBlur  = 30 * sf;
+    ctx.font = `bold ${Math.round(52 * sf)}px "Arial Black", Arial`;
     // Red gradient text
-    const goGrad = ctx.createLinearGradient(cx - 160, 0, cx + 160, 0);
+    const goGrad = ctx.createLinearGradient(cx - 160 * sf, 0, cx + 160 * sf, 0);
     goGrad.addColorStop(0, '#ff2222');
     goGrad.addColorStop(0.5, '#ff6666');
     goGrad.addColorStop(1, '#ff2222');
     ctx.fillStyle = goGrad;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('GAME  OVER', cx, panY + 128);
+    ctx.fillText('GAME  OVER', cx, panY + 128 * sf);
     ctx.restore();
 
     // ── Kill message ──────────────────────────────────────────────────────
-    ctx.font = '16px Arial';
+    ctx.font = `${Math.round(16 * sf)}px Arial`;
     ctx.fillStyle = '#ffbbbb';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     const msg = this.killedBy === 'hunter'
       ? '🔫  A hunter spotted you and pulled the trigger!'
       : '💥  You crashed into the jungle boundary!';
-    ctx.fillText(msg, cx, panY + 158);
+    ctx.fillText(msg, cx, panY + 158 * sf);
 
     // ── Stats row ─────────────────────────────────────────────────────────
-    const statsY = panY + 195;
+    const statsY = panY + 195 * sf;
     const statBoxes = [
       { label: 'SCORE',       value: String(this.score) },
       { label: 'LENGTH',      value: String(this.snake.length) },
       { label: 'BEST',        value: String(this.highScore) },
     ];
-    const boxW = 120, boxH = 54, gap = 12;
+    const boxW = 120 * sf, boxH = 54 * sf, gap = 12 * sf;
     const totalBoxW = statBoxes.length * boxW + (statBoxes.length - 1) * gap;
     const boxStartX = cx - totalBoxW / 2;
 
@@ -2478,29 +2502,29 @@ export class GameEngineService {
       // Box bg
       ctx.fillStyle = 'rgba(255,255,255,0.06)';
       ctx.beginPath();
-      ctx.roundRect(bx, statsY, boxW, boxH, 8);
+      ctx.roundRect(bx, statsY, boxW, boxH, 8 * sf);
       ctx.fill();
       ctx.strokeStyle = 'rgba(255,100,100,0.3)';
       ctx.lineWidth = 1;
       ctx.stroke();
       // Value
-      ctx.font = 'bold 22px "Courier New"';
+      ctx.font = `bold ${Math.round(22 * sf)}px "Courier New"`;
       ctx.fillStyle = '#ffd700';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText(s.value, bx + boxW / 2, statsY + 30);
+      ctx.fillText(s.value, bx + boxW / 2, statsY + 30 * sf);
       // Label
-      ctx.font = '10px Arial';
+      ctx.font = `${Math.round(10 * sf)}px Arial`;
       ctx.fillStyle = '#888';
-      ctx.fillText(s.label, bx + boxW / 2, statsY + 46);
+      ctx.fillText(s.label, bx + boxW / 2, statsY + 46 * sf);
     });
 
     // ── Buttons ───────────────────────────────────────────────────────────
-    const btnY  = panY + panH - 70;
-    const btnW  = 185;
-    const btnH  = 46;
-    const btn1X = cx - btnW - 10;
-    const btn2X = cx + 10;
+    const btnY  = panY + panH - 70 * sf;
+    const btnW  = 185 * sf;
+    const btnH  = 46 * sf;
+    const btn1X = cx - btnW - 10 * sf;
+    const btn2X = cx + 10 * sf;
 
     this.overlayPlayAgainBtn = { x: btn1X, y: btnY, w: btnW, h: btnH };
     this.overlayMenuBtn      = { x: btn2X, y: btnY, w: btnW, h: btnH };
@@ -2511,12 +2535,12 @@ export class GameEngineService {
     b1Grad.addColorStop(1,   '#1b5e20');
     ctx.fillStyle = b1Grad;
     ctx.beginPath();
-    ctx.roundRect(btn1X, btnY, btnW, btnH, 10);
+    ctx.roundRect(btn1X, btnY, btnW, btnH, 10 * sf);
     ctx.fill();
     ctx.strokeStyle = '#4caf50';
-    ctx.lineWidth = 1.8;
+    ctx.lineWidth = 1.8 * sf;
     ctx.stroke();
-    ctx.font = 'bold 16px Arial';
+    ctx.font = `bold ${Math.round(16 * sf)}px Arial`;
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -2528,12 +2552,12 @@ export class GameEngineService {
     b2Grad.addColorStop(1,   '#263238');
     ctx.fillStyle = b2Grad;
     ctx.beginPath();
-    ctx.roundRect(btn2X, btnY, btnW, btnH, 10);
+    ctx.roundRect(btn2X, btnY, btnW, btnH, 10 * sf);
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.5 * sf;
     ctx.stroke();
-    ctx.font = 'bold 16px Arial';
+    ctx.font = `bold ${Math.round(16 * sf)}px Arial`;
     ctx.fillStyle = '#cccccc';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

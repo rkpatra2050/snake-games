@@ -1,6 +1,6 @@
 import {
   Component, ElementRef, ViewChild, OnInit, OnDestroy,
-  HostListener, AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef
+  HostListener, AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, NgZone
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GameEngineService } from '../../services/game-engine.service';
@@ -12,6 +12,7 @@ import { GameEngineService } from '../../services/game-engine.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="game-wrapper">
+
       <!-- MENU SCREEN -->
       <div class="screen menu-screen" *ngIf="engine.gameState === 'menu'">
         <div class="jungle-title-bg">
@@ -41,38 +42,38 @@ import { GameEngineService } from '../../services/game-engine.service';
           <div class="menu-cards">
             <div class="info-card">
               <h3>🎯 Mission</h3>
-              <p>Guide your snake through the jungle, eat animals to grow, avoid hunters, and reach the victory flag!</p>
+              <p>Eat animals to grow, avoid hunters, reach the victory flag!</p>
             </div>
             <div class="info-card">
               <h3>🎮 Controls</h3>
               <div class="controls-grid">
-                <span class="key">W</span><span>Move Up</span>
-                <span class="key">S</span><span>Move Down</span>
-                <span class="key">A</span><span>Move Left</span>
-                <span class="key">D</span><span>Move Right</span>
-                <span class="key">P</span><span>Pause Game</span>
+                <span class="key">W/↑</span><span>Up</span>
+                <span class="key">S/↓</span><span>Down</span>
+                <span class="key">A/←</span><span>Left</span>
+                <span class="key">D/→</span><span>Right</span>
               </div>
+              <p class="mobile-note">📱 On mobile: use the D-pad below the game!</p>
             </div>
             <div class="info-card">
               <h3>🏆 Scoring</h3>
               <div class="score-list">
-                <div class="score-item"><span>🐰 Rabbit</span><span class="pts">+10 pts</span></div>
-                <div class="score-item"><span>🐸 Frog</span><span class="pts">+15 pts</span></div>
-                <div class="score-item"><span>🐦 Bird</span><span class="pts">+20 pts</span></div>
-                <div class="score-item"><span>🐭 Mouse</span><span class="pts">+12 pts</span></div>
-                <div class="score-item"><span>🦋 Butterfly</span><span class="pts">+25 pts</span></div>
+                <div class="score-item"><span>🐰 Rabbit</span><span class="pts">+10</span></div>
+                <div class="score-item"><span>🐸 Frog</span><span class="pts">+15</span></div>
+                <div class="score-item"><span>🐦 Bird</span><span class="pts">+20</span></div>
+                <div class="score-item"><span>🐭 Mouse</span><span class="pts">+12</span></div>
+                <div class="score-item"><span>🦋 Butterfly</span><span class="pts">+25</span></div>
               </div>
             </div>
           </div>
 
           <div class="menu-warnings">
-            <div class="warning-item">👨 Hunter spotted = Instant death!</div>
+            <div class="warning-item">👨 Hunter spotted = Death!</div>
             <div class="warning-item">🏁 Reach the flag to WIN!</div>
             <div class="warning-item">🌿 Walls are deadly!</div>
           </div>
 
           <div class="high-score-display" *ngIf="engine.highScore > 0">
-            ⭐ High Score: {{ engine.highScore }}
+            ⭐ Best: {{ engine.highScore }}
           </div>
 
           <button class="start-btn" (click)="startGame()">
@@ -86,11 +87,20 @@ import { GameEngineService } from '../../services/game-engine.service';
       <!-- GAME CANVAS -->
       <div class="canvas-container" [class.hidden]="engine.gameState === 'menu' || engine.gameState === 'won'">
         <canvas #gameCanvas
-          [width]="canvasWidth"
-          [height]="canvasHeight"
           class="game-canvas"
-          (click)="onCanvasClick($event)">
+          (click)="onCanvasClick($event)"
+          (touchstart)="onCanvasTouchStart($event)"
+          (touchend)="onCanvasTouchEnd($event)">
         </canvas>
+
+        <!-- Mobile D-Pad -->
+        <div class="dpad" *ngIf="isMobile">
+          <button class="dpad-btn dpad-up"    (touchstart)="onDpad('up', $event)"    (click)="onDpad('up', $event)">▲</button>
+          <button class="dpad-btn dpad-left"  (touchstart)="onDpad('left', $event)"  (click)="onDpad('left', $event)">◀</button>
+          <button class="dpad-btn dpad-center"></button>
+          <button class="dpad-btn dpad-right" (touchstart)="onDpad('right', $event)" (click)="onDpad('right', $event)">▶</button>
+          <button class="dpad-btn dpad-down"  (touchstart)="onDpad('down', $event)"  (click)="onDpad('down', $event)">▼</button>
+        </div>
       </div>
 
       <!-- WIN SCREEN -->
@@ -109,64 +119,24 @@ import { GameEngineService } from '../../services/game-engine.service';
           <div class="win-stats">
             <div class="stat-box">
               <div class="stat-value">{{ engine.score }}</div>
-              <div class="stat-label">Final Score</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-value">{{ engine.snake.length }}</div>
-              <div class="stat-label">Snake Length</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-value">{{ engine.highScore }}</div>
-              <div class="stat-label">Best Score</div>
-            </div>
-          </div>
-          <div class="win-animals-eaten">
-            🐾 Animals eaten to survive the jungle!
-          </div>
-          <div class="win-buttons">
-            <button class="play-again-btn" (click)="startGame()">🔄 Play Again</button>
-            <button class="menu-btn" (click)="goToMenu()">🏠 Main Menu</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- DEATH SCREEN (Angular overlay — still kept for 'lost' state fallback) -->
-      <div class="screen death-screen" *ngIf="engine.gameState === 'lost'">
-        <div class="death-content">
-          <div class="death-icon">
-            <span *ngIf="engine.killedBy === 'hunter'">👨‍🌾</span>
-            <span *ngIf="engine.killedBy !== 'hunter'">💀</span>
-          </div>
-          <h1 class="death-title">GAME OVER</h1>
-          <p class="death-reason" *ngIf="engine.killedBy === 'hunter'">
-            ⚠️ A hunter spotted you and opened fire!
-          </p>
-          <p class="death-reason" *ngIf="engine.killedBy !== 'hunter'">
-            💥 You crashed into the jungle walls!
-          </p>
-          <div class="death-stats">
-            <div class="stat-box">
-              <div class="stat-value">{{ engine.score }}</div>
               <div class="stat-label">Score</div>
             </div>
             <div class="stat-box">
               <div class="stat-value">{{ engine.snake.length }}</div>
-              <div class="stat-label">Max Length</div>
+              <div class="stat-label">Length</div>
             </div>
             <div class="stat-box">
               <div class="stat-value">{{ engine.highScore }}</div>
-              <div class="stat-label">Best Score</div>
+              <div class="stat-label">Best</div>
             </div>
           </div>
-          <div class="death-tip">
-            💡 Tip: {{ getRandomTip() }}
-          </div>
-          <div class="death-buttons">
-            <button class="play-again-btn" (click)="startGame()">🔄 Try Again</button>
-            <button class="menu-btn" (click)="goToMenu()">🏠 Main Menu</button>
+          <div class="win-buttons">
+            <button class="play-again-btn" (click)="startGame()">🔄 Play Again</button>
+            <button class="menu-btn" (click)="goToMenu()">🏠 Menu</button>
           </div>
         </div>
       </div>
+
     </div>
   `,
   styleUrls: ['./game.component.scss']
@@ -174,8 +144,13 @@ import { GameEngineService } from '../../services/game-engine.service';
 export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('gameCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
 
-  canvasWidth = 900;
+  canvasWidth  = 900;
   canvasHeight = 600;
+  isMobile = false;
+
+  // Touch swipe tracking
+  private touchStartX = 0;
+  private touchStartY = 0;
 
   titleTrees = Array.from({ length: 12 }, (_, i) => ({
     size: 30 + Math.random() * 30,
@@ -195,19 +170,20 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
   tips = [
     'Watch the hunter\'s sight cone — yellow means patrol, red means chase!',
     'Eat butterflies for 25 points — the most valuable prey!',
-    'Stay in bushes to confuse hunters!',
     'The flag is on the right side of the jungle. Keep moving right!',
-    'Don\'t cross your own tail or you\'ll crash!',
     'Hunters move faster in chase mode. Zigzag to escape!'
   ];
 
-  constructor(public engine: GameEngineService, private cdr: ChangeDetectorRef) {}
+  constructor(public engine: GameEngineService, private cdr: ChangeDetectorRef, private zone: NgZone) {}
 
   ngOnInit() {
     this.engine.loadHighScore();
+    this.checkMobile();
+    this.resizeCanvas();
   }
 
   ngAfterViewInit() {
+    this.resizeCanvas();
     if (this.canvasRef?.nativeElement) {
       this.engine.init(this.canvasRef.nativeElement);
     }
@@ -217,33 +193,131 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     this.engine.stopLoop();
   }
 
+  checkMobile() {
+    this.isMobile = window.innerWidth <= 768 || 'ontouchstart' in window;
+  }
+
+  resizeCanvas() {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    this.isMobile = vw <= 768 || 'ontouchstart' in window;
+
+    if (this.isMobile) {
+      // On mobile: canvas fills full width, leave room for D-pad
+      const dpadH = 180;
+      const availH = vh - dpadH - 50; // 50px for HUD breathing room
+      const ratio = 900 / 600; // fixed game aspect ratio
+      let w = vw;
+      let h = w / ratio;
+      if (h > availH) {
+        h = availH;
+        w = h * ratio;
+      }
+      this.canvasWidth  = Math.round(w);
+      this.canvasHeight = Math.round(h);
+    } else {
+      // Desktop: fit within viewport with padding
+      const maxW = Math.min(vw - 40, 1200);
+      const maxH = Math.min(vh - 40, 700);
+      const ratio = 900 / 600;
+      let w = maxW;
+      let h = w / ratio;
+      if (h > maxH) { h = maxH; w = h * ratio; }
+      this.canvasWidth  = Math.round(w);
+      this.canvasHeight = Math.round(h);
+    }
+
+    // Apply to canvas element if available
+    if (this.canvasRef?.nativeElement) {
+      const canvas = this.canvasRef.nativeElement;
+      canvas.width  = this.canvasWidth;
+      canvas.height = this.canvasHeight;
+      // Keep the engine world dimensions synced
+      this.engine.canvas = canvas;
+      this.engine.ctx    = canvas.getContext('2d')!;
+    }
+    this.cdr.markForCheck();
+  }
+
+  @HostListener('window:resize')
+  onResize() {
+    this.resizeCanvas();
+  }
+
   startGame() {
+    this.resizeCanvas();
     this.engine.overlayVisible = false;
     this.engine.startGame();
     this.cdr.detectChanges();
-    // Register overlay button callbacks
-    this.engine.onPlayAgain = () => {
-      this.startGame();
-    };
-    this.engine.onGoMenu = () => {
-      this.goToMenu();
-    };
-    // Re-init canvas after view might re-render
+    this.engine.onPlayAgain = () => { this.zone.run(() => this.startGame()); };
+    this.engine.onGoMenu    = () => { this.zone.run(() => this.goToMenu()); };
     setTimeout(() => {
       if (this.canvasRef?.nativeElement) {
         this.engine.canvas = this.canvasRef.nativeElement;
-        this.engine.ctx = this.canvasRef.nativeElement.getContext('2d')!;
+        this.engine.ctx    = this.canvasRef.nativeElement.getContext('2d')!;
       }
     }, 50);
   }
 
   onCanvasClick(event: MouseEvent) {
-    const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
+    const canvas = event.target as HTMLCanvasElement;
+    const rect   = canvas.getBoundingClientRect();
     const scaleX = this.canvasWidth  / rect.width;
     const scaleY = this.canvasHeight / rect.height;
     const ex = (event.clientX - rect.left) * scaleX;
     const ey = (event.clientY - rect.top)  * scaleY;
     this.engine.handleCanvasClick(ex, ey);
+    this.cdr.detectChanges();
+  }
+
+  // Touch: record start position for swipe detection
+  onCanvasTouchStart(event: TouchEvent) {
+    event.preventDefault();
+    if (event.touches.length > 0) {
+      this.touchStartX = event.touches[0].clientX;
+      this.touchStartY = event.touches[0].clientY;
+    }
+  }
+
+  // Touch: detect swipe direction OR tap on overlay buttons
+  onCanvasTouchEnd(event: TouchEvent) {
+    event.preventDefault();
+    if (event.changedTouches.length === 0) return;
+
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - this.touchStartX;
+    const dy = touch.clientY - this.touchStartY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    if (absDx < 10 && absDy < 10) {
+      // It's a tap — handle canvas button clicks
+      const canvas = this.canvasRef.nativeElement;
+      const rect   = canvas.getBoundingClientRect();
+      const scaleX = this.canvasWidth  / rect.width;
+      const scaleY = this.canvasHeight / rect.height;
+      const ex = (touch.clientX - rect.left) * scaleX;
+      const ey = (touch.clientY - rect.top)  * scaleY;
+      this.engine.handleCanvasClick(ex, ey);
+    } else {
+      // It's a swipe — map to direction
+      if (absDx > absDy) {
+        this.engine.handleKey(dx > 0 ? 'ArrowRight' : 'ArrowLeft');
+      } else {
+        this.engine.handleKey(dy > 0 ? 'ArrowDown' : 'ArrowUp');
+      }
+    }
+    this.cdr.detectChanges();
+  }
+
+  // D-pad button press
+  onDpad(dir: string, event: Event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const keyMap: Record<string, string> = {
+      up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight'
+    };
+    this.engine.handleKey(keyMap[dir]);
     this.cdr.detectChanges();
   }
 
@@ -265,3 +339,4 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.tips[Math.floor(Math.random() * this.tips.length)];
   }
 }
+
