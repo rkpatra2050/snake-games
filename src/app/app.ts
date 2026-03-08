@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { GameComponent } from './components/game/game.component';
 
 @Component({
@@ -17,4 +18,15 @@ import { GameComponent } from './components/game/game.component';
 })
 export class App {
   title = 'jungle-snake';
+
+  constructor() {
+    const doc = inject(DOCUMENT);
+    // Load Google Fonts at runtime so Angular build tool never inlines them
+    const fontUrl = ['https://fonts', '.googleapis.com/css2?family=Cinzel',
+      ':wght@700;900&family=Exo+2:wght@400;700&display=swap'].join('');
+    const link = doc.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = fontUrl;
+    doc.head.appendChild(link);
+  }
 }

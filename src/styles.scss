@@ -1,5 +1,5 @@
 /* Jungle Serpent - Global Styles */
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Exo+2:wght@400;700&display=swap');
+/* Fonts are loaded at runtime via app component, not at build time */
 
 *, *::before, *::after {
   box-sizing: border-box;
