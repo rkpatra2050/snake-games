@@ -52,7 +52,7 @@ import { GameEngineService } from '../../services/game-engine.service';
                 <span class="key">A/←</span><span>Left</span>
                 <span class="key">D/→</span><span>Right</span>
               </div>
-              <p class="mobile-note">📱 On mobile: use the D-pad below the game!</p>
+              <p class="mobile-note">📱 Mobile: Swipe anywhere on screen to move!</p>
             </div>
             <div class="info-card">
               <h3>🏆 Scoring</h3>
@@ -84,22 +84,19 @@ import { GameEngineService } from '../../services/game-engine.service';
         </div>
       </div>
 
-      <!-- GAME CANVAS -->
+      <!-- GAME CANVAS — full screen, swipe anywhere to move -->
       <div class="canvas-container" [class.hidden]="engine.gameState === 'menu' || engine.gameState === 'won'">
         <canvas #gameCanvas
           class="game-canvas"
           (click)="onCanvasClick($event)"
-          (touchstart)="onCanvasTouchStart($event)"
-          (touchend)="onCanvasTouchEnd($event)">
+          (touchstart)="onTouchStart($event)"
+          (touchmove)="onTouchMove($event)"
+          (touchend)="onTouchEnd($event)">
         </canvas>
 
-        <!-- Mobile D-Pad -->
-        <div class="dpad" *ngIf="isMobile">
-          <button class="dpad-btn dpad-up"    (touchstart)="onDpad('up', $event)"    (click)="onDpad('up', $event)">▲</button>
-          <button class="dpad-btn dpad-left"  (touchstart)="onDpad('left', $event)"  (click)="onDpad('left', $event)">◀</button>
-          <button class="dpad-btn dpad-center"></button>
-          <button class="dpad-btn dpad-right" (touchstart)="onDpad('right', $event)" (click)="onDpad('right', $event)">▶</button>
-          <button class="dpad-btn dpad-down"  (touchstart)="onDpad('down', $event)"  (click)="onDpad('down', $event)">▼</button>
+        <!-- Swipe hint — fades out after a few seconds -->
+        <div class="swipe-hint" *ngIf="showSwipeHint && isMobile">
+          <span>👆 Swipe anywhere to move</span>
         </div>
       </div>
 
@@ -147,10 +144,12 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
   canvasWidth  = 900;
   canvasHeight = 600;
   isMobile = false;
+  showSwipeHint = true;
 
-  // Touch swipe tracking
+  // Touch tracking
   private touchStartX = 0;
   private touchStartY = 0;
+  private swipeActive = false;     // true once a direction has been sent this touch
 
   titleTrees = Array.from({ length: 12 }, (_, i) => ({
     size: 30 + Math.random() * 30,
@@ -167,18 +166,11 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     duration: 2 + Math.random() * 3
   }));
 
-  tips = [
-    'Watch the hunter\'s sight cone — yellow means patrol, red means chase!',
-    'Eat butterflies for 25 points — the most valuable prey!',
-    'The flag is on the right side of the jungle. Keep moving right!',
-    'Hunters move faster in chase mode. Zigzag to escape!'
-  ];
-
   constructor(public engine: GameEngineService, private cdr: ChangeDetectorRef, private zone: NgZone) {}
 
   ngOnInit() {
     this.engine.loadHighScore();
-    this.checkMobile();
+    this.isMobile = 'ontouchstart' in window || window.innerWidth <= 900;
     this.resizeCanvas();
   }
 
@@ -193,30 +185,20 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     this.engine.stopLoop();
   }
 
-  checkMobile() {
-    this.isMobile = window.innerWidth <= 768 || 'ontouchstart' in window;
-  }
-
   resizeCanvas() {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    this.isMobile = vw <= 900 || 'ontouchstart' in window;
+    this.isMobile = 'ontouchstart' in window || vw <= 900;
 
-    // Always fill the full viewport — the canvas is the game world
+    // Fill the full viewport maintaining 3:2 aspect ratio
     const ratio = 900 / 600;
     let w = vw;
-    let h = vw / ratio;
-
-    // If height exceeds viewport, shrink to fit height
-    if (h > vh) {
-      h = vh;
-      w = vh * ratio;
-    }
+    let h = w / ratio;
+    if (h > vh) { h = vh; w = h * ratio; }
 
     this.canvasWidth  = Math.round(w);
     this.canvasHeight = Math.round(h);
 
-    // Apply to canvas element if available
     if (this.canvasRef?.nativeElement) {
       const canvas = this.canvasRef.nativeElement;
       canvas.width  = this.canvasWidth;
@@ -234,7 +216,9 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
 
   startGame() {
     this.resizeCanvas();
-    // Register callbacks BEFORE starting the engine so they're ready on first death
+    this.showSwipeHint = true;
+    // Hide swipe hint after 3 s
+    setTimeout(() => { this.showSwipeHint = false; this.cdr.markForCheck(); }, 3000);
     this.engine.onPlayAgain = () => { this.zone.run(() => this.startGame()); };
     this.engine.onGoMenu    = () => { this.zone.run(() => this.goToMenu()); };
     this.engine.startGame();
@@ -247,6 +231,7 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     }, 30);
   }
 
+  // ── MOUSE CLICK — desktop overlay buttons ────────────────────────
   onCanvasClick(event: MouseEvent) {
     const canvas = event.target as HTMLCanvasElement;
     const rect   = canvas.getBoundingClientRect();
@@ -258,55 +243,61 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  // Touch: record start position for swipe detection
-  onCanvasTouchStart(event: TouchEvent) {
+  // ── TOUCH: record start position ─────────────────────────────────
+  onTouchStart(event: TouchEvent) {
     event.preventDefault();
-    if (event.touches.length > 0) {
-      this.touchStartX = event.touches[0].clientX;
-      this.touchStartY = event.touches[0].clientY;
-    }
+    const t = event.touches[0];
+    this.touchStartX  = t.clientX;
+    this.touchStartY  = t.clientY;
+    this.swipeActive  = false;
   }
 
-  // Touch: detect swipe direction OR tap on overlay buttons
-  onCanvasTouchEnd(event: TouchEvent) {
+  // ── TOUCH: fire direction as soon as finger moves 20px ───────────
+  onTouchMove(event: TouchEvent) {
     event.preventDefault();
-    if (event.changedTouches.length === 0) return;
+    if (this.swipeActive) return;      // one direction per touch gesture
 
-    const touch = event.changedTouches[0];
-    const dx = touch.clientX - this.touchStartX;
-    const dy = touch.clientY - this.touchStartY;
+    const t     = event.touches[0];
+    const dx    = t.clientX - this.touchStartX;
+    const dy    = t.clientY - this.touchStartY;
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
 
-    if (absDx < 10 && absDy < 10) {
-      // It's a tap — handle canvas button clicks
-      const canvas = this.canvasRef.nativeElement;
-      const rect   = canvas.getBoundingClientRect();
-      const scaleX = this.canvasWidth  / rect.width;
-      const scaleY = this.canvasHeight / rect.height;
-      const ex = (touch.clientX - rect.left) * scaleX;
-      const ey = (touch.clientY - rect.top)  * scaleY;
-      this.engine.handleCanvasClick(ex, ey);
+    if (absDx < 20 && absDy < 20) return;   // wait for clearer intent
+
+    this.swipeActive = true;
+    if (absDx > absDy) {
+      this.engine.handleKey(dx > 0 ? 'ArrowRight' : 'ArrowLeft');
     } else {
-      // It's a swipe — map to direction
-      if (absDx > absDy) {
-        this.engine.handleKey(dx > 0 ? 'ArrowRight' : 'ArrowLeft');
-      } else {
-        this.engine.handleKey(dy > 0 ? 'ArrowDown' : 'ArrowUp');
-      }
+      this.engine.handleKey(dy > 0 ? 'ArrowDown' : 'ArrowUp');
     }
     this.cdr.detectChanges();
   }
 
-  // D-pad button press
-  onDpad(dir: string, event: Event) {
+  // ── TOUCH END: handle tap → overlay button ────────────────────────
+  onTouchEnd(event: TouchEvent) {
     event.preventDefault();
-    event.stopPropagation();
-    const keyMap: Record<string, string> = {
-      up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight'
-    };
-    this.engine.handleKey(keyMap[dir]);
-    this.cdr.detectChanges();
+    if (event.changedTouches.length === 0) return;
+
+    const t     = event.changedTouches[0];
+    const dx    = t.clientX - this.touchStartX;
+    const dy    = t.clientY - this.touchStartY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Pure tap (no movement) → hit-test overlay buttons
+    if (!this.swipeActive && absDx < 12 && absDy < 12) {
+      const canvas = this.canvasRef?.nativeElement;
+      if (canvas) {
+        const rect   = canvas.getBoundingClientRect();
+        const scaleX = this.canvasWidth  / rect.width;
+        const scaleY = this.canvasHeight / rect.height;
+        const ex = (t.clientX - rect.left) * scaleX;
+        const ey = (t.clientY - rect.top)  * scaleY;
+        this.engine.handleCanvasClick(ex, ey);
+        this.cdr.detectChanges();
+      }
+    }
   }
 
   goToMenu() {
@@ -325,10 +316,6 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     event.preventDefault();
     this.engine.handleKey(event.key);
     this.cdr.detectChanges();
-  }
-
-  getRandomTip(): string {
-    return this.tips[Math.floor(Math.random() * this.tips.length)];
   }
 }
 

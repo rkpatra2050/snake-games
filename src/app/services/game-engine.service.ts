@@ -2374,11 +2374,11 @@ export class GameEngineService {
     ctx.fillText(`FPS: ${this.fps}`, W - pad, row2);
 
     // Controls reminder — show keyboard on desktop, D-pad hint on mobile
-    const isMobile = W < 600;
+    const isMobile = W < 700;
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.font = `${smallFontSize}px Arial`;
     ctx.textAlign = 'center';
-    const hint = isMobile ? '👆 Swipe or use D-pad below' : 'WASD / Arrow Keys to move | P to pause';
+    const hint = isMobile ? '👆 Swipe to move' : 'WASD / Arrow Keys to move | P to pause';
     ctx.fillText(hint, W / 2, H - Math.round(8 * sf));
   }
 
