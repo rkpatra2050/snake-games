@@ -649,12 +649,13 @@ export class GameEngineService {
     this.spawnDeathParticles(this.deathPosition.x, this.deathPosition.y);
     this.deathTimer = 0;
     this.saveHighScore();
-    // Clear any previous pending overlay timer, then show after brief particle delay
+    // Show overlay after very brief delay (let death particles spawn first)
     if (this._overlayTimer) clearTimeout(this._overlayTimer);
+    this.overlayVisible = false;
     this._overlayTimer = setTimeout(() => {
       this.overlayVisible = true;
       this._overlayTimer = null;
-    }, 800);
+    }, 400);
   }
 
   private _overlayTimer: any = null;

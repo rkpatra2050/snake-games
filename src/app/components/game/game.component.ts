@@ -190,14 +190,9 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     const vh = window.innerHeight;
     this.isMobile = 'ontouchstart' in window || vw <= 900;
 
-    // Fill the full viewport maintaining 3:2 aspect ratio
-    const ratio = 900 / 600;
-    let w = vw;
-    let h = w / ratio;
-    if (h > vh) { h = vh; w = h * ratio; }
-
-    this.canvasWidth  = Math.round(w);
-    this.canvasHeight = Math.round(h);
+    // Fill the FULL viewport — game engine scales all coordinates accordingly
+    this.canvasWidth  = vw;
+    this.canvasHeight = vh;
 
     if (this.canvasRef?.nativeElement) {
       const canvas = this.canvasRef.nativeElement;
