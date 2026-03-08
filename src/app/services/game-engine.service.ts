@@ -649,13 +649,17 @@ export class GameEngineService {
     this.spawnDeathParticles(this.deathPosition.x, this.deathPosition.y);
     this.deathTimer = 0;
     this.saveHighScore();
-    // Show overlay after very brief delay (let death particles spawn first)
+    // Let particles play for 500ms, then STOP the loop and paint a permanent overlay
     if (this._overlayTimer) clearTimeout(this._overlayTimer);
     this.overlayVisible = false;
     this._overlayTimer = setTimeout(() => {
-      this.overlayVisible = true;
       this._overlayTimer = null;
-    }, 400);
+      this.overlayVisible = true;
+      // Stop the animation loop so the overlay stays permanently on canvas
+      this.stopLoop();
+      // Do one final render with the overlay painted on top
+      this.render();
+    }, 500);
   }
 
   private _overlayTimer: any = null;

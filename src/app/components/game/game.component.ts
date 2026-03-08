@@ -200,6 +200,10 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
       canvas.height = this.canvasHeight;
       this.engine.canvas = canvas;
       this.engine.ctx    = canvas.getContext('2d')!;
+      // If overlay is currently showing (loop stopped), repaint it immediately
+      if (this.engine.overlayVisible) {
+        this.engine.render();
+      }
     }
     this.cdr.markForCheck();
   }
@@ -280,18 +284,26 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
 
-    // Pure tap (no movement) → hit-test overlay buttons
-    if (!this.swipeActive && absDx < 12 && absDy < 12) {
-      const canvas = this.canvasRef?.nativeElement;
-      if (canvas) {
-        const rect   = canvas.getBoundingClientRect();
-        const scaleX = this.canvasWidth  / rect.width;
-        const scaleY = this.canvasHeight / rect.height;
-        const ex = (t.clientX - rect.left) * scaleX;
-        const ey = (t.clientY - rect.top)  * scaleY;
-        this.engine.handleCanvasClick(ex, ey);
-        this.cdr.detectChanges();
-      }
+    const canvas = this.canvasRef?.nativeElement;
+    if (!canvas) return;
+
+    const rect   = canvas.getBoundingClientRect();
+    const scaleX = this.canvasWidth  / rect.width;
+    const scaleY = this.canvasHeight / rect.height;
+    const ex = (t.clientX - rect.left) * scaleX;
+    const ey = (t.clientY - rect.top)  * scaleY;
+
+    // If overlay is visible, ALWAYS try to hit-test buttons (tap or swipe-end)
+    if (this.engine.overlayVisible) {
+      this.engine.handleCanvasClick(ex, ey);
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // Pure tap (no movement) during gameplay → hit-test any canvas elements
+    if (!this.swipeActive && absDx < 20 && absDy < 20) {
+      this.engine.handleCanvasClick(ex, ey);
+      this.cdr.detectChanges();
     }
   }
 
