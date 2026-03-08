@@ -12,7 +12,7 @@ export class GameEngineService {
 
   // Game Config
   config: GameConfig = {
-    cellSize: 20,
+    cellSize: 26,
     cols: 80,
     rows: 40,
     snakeSpeed: 8,
@@ -2055,141 +2055,200 @@ export class GameEngineService {
   renderSnake() {
     const ctx = this.ctx;
     if (this.snake.length === 0) return;
-    const cs = this.config.cellSize;
-    const t = this.animTime * 0.005;
+    const cs   = this.config.cellSize;
+    const half = cs / 2;
 
-    // Draw body from tail to head
-    for (let i = this.snake.length - 1; i >= 0; i--) {
-      const seg = this.snake[i];
-      const x = seg.x * cs + cs / 2;
-      const y = seg.y * cs + cs / 2;
-      const isHead = i === 0;
-      const progress = i / this.snake.length;
-
-      if (!this.snakeAlive) {
-        ctx.globalAlpha = Math.max(0, 1 - this.deathTimer / 1000);
-      }
-
-      const r = isHead ? cs * 0.48 : cs * (0.38 - progress * 0.04);
-
-      if (!isHead) {
-        // Vivid yellow-green body with dark diamond pattern
-        const baseHue = 80;  // yellow-green — not all-green
-        const bodyGrad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, 1, x, y, r);
-        bodyGrad.addColorStop(0,   `hsl(${baseHue + progress*15}, 80%, 55%)`);
-        bodyGrad.addColorStop(0.5, `hsl(${baseHue + progress*15}, 70%, 35%)`);
-        bodyGrad.addColorStop(1,   `hsl(${baseHue + progress*15}, 60%, 20%)`);
-        ctx.fillStyle = bodyGrad;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Diamond scale pattern every 2 segments
-        if (i % 2 === 0) {
-          ctx.fillStyle = `hsl(${baseHue - 20 + progress*10}, 60%, 18%)`;
-          ctx.beginPath();
-          ctx.ellipse(x, y, r * 0.65, r * 0.45, Math.PI * 0.25, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // Bright yellow belly stripe
-        if (i % 3 === 0) {
-          ctx.fillStyle = `rgba(230, 200, 40, 0.35)`;
-          ctx.beginPath();
-          ctx.ellipse(x, y, r * 0.35, r * 0.25, 0, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // Dark outline
-        ctx.strokeStyle = `hsl(${baseHue - 20}, 60%, 12%)`;
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      if (isHead) {
-        // Head — brighter, distinct from body
-        const headGrad = ctx.createRadialGradient(x - r*0.35, y - r*0.35, 1, x, y, r);
-        headGrad.addColorStop(0,   '#a0e040');  // bright lime
-        headGrad.addColorStop(0.5, '#60b020');
-        headGrad.addColorStop(1,   '#2a6008');
-        ctx.fillStyle = headGrad;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Head plate pattern
-        ctx.fillStyle = 'rgba(40,100,5,0.5)';
-        ctx.beginPath();
-        ctx.ellipse(x, y, r * 0.7, r * 0.45, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Head outline
-        ctx.strokeStyle = '#1a4005';
-        ctx.lineWidth = 1.8;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Eyes
-        const eyeAngle = this.direction === 'right' ? 0 : this.direction === 'left' ? Math.PI : this.direction === 'up' ? -Math.PI / 2 : Math.PI / 2;
-        const ex1 = x + Math.cos(eyeAngle + 0.5) * r * 0.58;
-        const ey1 = y + Math.sin(eyeAngle + 0.5) * r * 0.58;
-        const ex2 = x + Math.cos(eyeAngle - 0.5) * r * 0.58;
-        const ey2 = y + Math.sin(eyeAngle - 0.5) * r * 0.58;
-
-        // Eye white + golden iris
-        ctx.fillStyle = '#ffe080';
-        ctx.beginPath();
-        ctx.arc(ex1, ey1, 3.8, 0, Math.PI * 2);
-        ctx.arc(ex2, ey2, 3.8, 0, Math.PI * 2);
-        ctx.fill();
-
-        const blink = this.snakeEyeBlinkTimer % 3000 > 2900;
-        ctx.fillStyle = '#1a0000';
-        if (blink) {
-          ctx.fillRect(ex1 - 3.8, ey1 - 0.5, 7.6, 1);
-          ctx.fillRect(ex2 - 3.8, ey2 - 0.5, 7.6, 1);
-        } else {
-          // Slit pupil (reptilian)
-          ctx.beginPath();
-          ctx.ellipse(ex1 + 0.5, ey1, 1.2, 2.8, 0, 0, Math.PI * 2);
-          ctx.ellipse(ex2 + 0.5, ey2, 1.2, 2.8, 0, 0, Math.PI * 2);
-          ctx.fill();
-          // Eye shine
-          ctx.fillStyle = 'rgba(255,255,255,0.8)';
-          ctx.beginPath();
-          ctx.arc(ex1 + 0.8, ey1 - 1.2, 0.9, 0, Math.PI * 2);
-          ctx.arc(ex2 + 0.8, ey2 - 1.2, 0.9, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // Tongue
-        if (this.snakeTongueOut) {
-          ctx.strokeStyle = '#e02020';
-          ctx.lineWidth = 1.8;
-          const tx = x + Math.cos(eyeAngle) * r;
-          const ty = y + Math.sin(eyeAngle) * r;
-          ctx.beginPath();
-          ctx.moveTo(tx, ty);
-          const tongueLen = 16;
-          const tx2 = tx + Math.cos(eyeAngle) * tongueLen;
-          const ty2 = ty + Math.sin(eyeAngle) * tongueLen;
-          ctx.lineTo(tx2, ty2);
-          ctx.stroke();
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.moveTo(tx2, ty2);
-          ctx.lineTo(tx2 + Math.cos(eyeAngle + 0.45) * 7, ty2 + Math.sin(eyeAngle + 0.45) * 7);
-          ctx.moveTo(tx2, ty2);
-          ctx.lineTo(tx2 + Math.cos(eyeAngle - 0.45) * 7, ty2 + Math.sin(eyeAngle - 0.45) * 7);
-          ctx.stroke();
-        }
-      }
-
-      ctx.globalAlpha = 1;
+    // ── Death fade ─────────────────────────────────────────────────────────
+    if (!this.snakeAlive) {
+      ctx.globalAlpha = Math.max(0, 1 - this.deathTimer / 900);
     }
+
+    // ── 1. Draw CONNECTED body tube (filled path from tail → head) ─────────
+    // Build centre points for each segment
+    const pts: { x: number; y: number }[] = this.snake.map(s => ({
+      x: s.x * cs + half,
+      y: s.y * cs + half
+    }));
+
+    const bodyR = cs * 0.46;   // body tube radius — thick!
+
+    // Draw smooth tube using stroked path
+    ctx.save();
+    ctx.lineCap  = 'round';
+    ctx.lineJoin = 'round';
+
+    // --- Outer dark shadow tube ---
+    ctx.strokeStyle = '#1a0800';
+    ctx.lineWidth   = bodyR * 2 + 5;
+    ctx.beginPath();
+    ctx.moveTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    for (let i = pts.length - 2; i >= 0; i--) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+
+    // --- Main body gradient: deep amber-orange (King Cobra / Ball Python) ---
+    // We use a fixed-direction gradient across the full body
+    ctx.strokeStyle = '#b85c18';   // rich burnt orange
+    ctx.lineWidth   = bodyR * 2;
+    ctx.beginPath();
+    ctx.moveTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    for (let i = pts.length - 2; i >= 0; i--) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+
+    // --- Top highlight (3D sheen) ---
+    ctx.strokeStyle = '#e8823a';   // bright highlight
+    ctx.lineWidth   = bodyR * 0.85;
+    ctx.globalAlpha = this.snakeAlive ? 0.55 : (ctx.globalAlpha * 0.55);
+    ctx.beginPath();
+    ctx.moveTo(pts[pts.length - 1].x - 2, pts[pts.length - 1].y - 2);
+    for (let i = pts.length - 2; i >= 0; i--) ctx.lineTo(pts[i].x - 2, pts[i].y - 2);
+    ctx.stroke();
+    ctx.globalAlpha = this.snakeAlive ? 1 : Math.max(0, 1 - this.deathTimer / 900);
+
+    ctx.restore();
+
+    // ── 2. Cross-band scale pattern every 3 segments ───────────────────────
+    ctx.save();
+    for (let i = this.snake.length - 1; i >= 1; i--) {
+      if (i % 3 !== 0) continue;
+      const seg  = this.snake[i];
+      const nx   = i > 0 ? this.snake[i - 1] : seg;
+      const px   = seg.x * cs + half;
+      const py   = seg.y * cs + half;
+      const angle = Math.atan2(nx.y - seg.y, nx.x - seg.x);
+
+      // Cream / ivory band across body
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(angle + Math.PI / 2);
+      ctx.fillStyle = 'rgba(240, 210, 155, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, bodyR * 1.05, bodyR * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Dark edge lines of band
+      ctx.strokeStyle = 'rgba(80, 30, 0, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // ── 3. HEAD ────────────────────────────────────────────────────────────
+    const head  = this.snake[0];
+    const neck  = this.snake[1] ?? head;
+    const hx    = head.x * cs + half;
+    const hy    = head.y * cs + half;
+    const hAngle = Math.atan2(head.y - neck.y, head.x - neck.x);
+    const headR  = cs * 0.54;   // head bigger than body
+
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(hAngle);
+
+    // Head shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(3, 3, headR * 1.15, headR * 0.85, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head base — dark brown (King Cobra hood colouring)
+    const headGrad = ctx.createRadialGradient(-headR * 0.25, -headR * 0.25, 1, 0, 0, headR * 1.1);
+    headGrad.addColorStop(0,   '#d96820');   // bright orange-brown top
+    headGrad.addColorStop(0.4, '#a0420c');   // mid amber
+    headGrad.addColorStop(1,   '#5c2005');   // dark edge
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, headR * 1.15, headR * 0.85, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head scale plate pattern
+    ctx.fillStyle = 'rgba(60,20,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(headR * 0.1, 0, headR * 0.7, headR * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Snout highlight
+    ctx.fillStyle = 'rgba(240,150,60,0.45)';
+    ctx.beginPath();
+    ctx.ellipse(-headR * 0.1, -headR * 0.22, headR * 0.55, headR * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head outline
+    ctx.strokeStyle = '#3a1000';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, headR * 1.15, headR * 0.85, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Nostrils
+    ctx.fillStyle = '#2a0800';
+    ctx.beginPath();
+    ctx.ellipse(headR * 0.9,  -headR * 0.28, 2.2, 1.4, 0.3, 0, Math.PI * 2);
+    ctx.ellipse(headR * 0.9,   headR * 0.28, 2.2, 1.4, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ── Eyes ───────────────────────────────────────────────────────────────
+    const eyeOffX =  headR * 0.35;
+    const eyeOffY =  headR * 0.55;
+    const eyeR    =  headR * 0.27;
+
+    [1, -1].forEach(sign => {
+      const ey = eyeOffY * sign;
+
+      // Eye socket (dark surround)
+      ctx.fillStyle = '#1a0500';
+      ctx.beginPath();
+      ctx.arc(eyeOffX, ey, eyeR + 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Gold iris
+      const irisGrad = ctx.createRadialGradient(eyeOffX - 1, ey - 1, 0, eyeOffX, ey, eyeR);
+      irisGrad.addColorStop(0,   '#ffe040');
+      irisGrad.addColorStop(0.6, '#c88000');
+      irisGrad.addColorStop(1,   '#7a4000');
+      ctx.fillStyle = irisGrad;
+      ctx.beginPath();
+      ctx.arc(eyeOffX, ey, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Slit pupil — vertical reptile pupil
+      const blink = this.snakeEyeBlinkTimer % 3000 > 2850;
+      ctx.fillStyle = '#0a0000';
+      if (blink) {
+        ctx.fillRect(eyeOffX - eyeR, ey - 1, eyeR * 2, 2);
+      } else {
+        ctx.beginPath();
+        ctx.ellipse(eyeOffX, ey, eyeR * 0.25, eyeR * 0.82, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Eye shine
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath();
+      ctx.arc(eyeOffX + eyeR * 0.3, ey - eyeR * 0.35, eyeR * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // ── Forked tongue ──────────────────────────────────────────────────────
+    if (this.snakeTongueOut) {
+      const tongueBase = headR * 1.1;
+      ctx.strokeStyle = '#cc1010';
+      ctx.lineWidth   = 2.2;
+      ctx.lineCap     = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tongueBase, 0);
+      ctx.lineTo(tongueBase + 18, 0);
+      ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(tongueBase + 18, 0);
+      ctx.lineTo(tongueBase + 26,  -6);
+      ctx.moveTo(tongueBase + 18, 0);
+      ctx.lineTo(tongueBase + 26,   6);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   renderFlag() {
