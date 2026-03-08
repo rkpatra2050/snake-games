@@ -131,15 +131,18 @@ export class GameEngineService {
       this.trees.push({ x: this.worldWidth - Math.random() * 80, y: Math.random() * this.worldHeight, scale: 0.8 + Math.random() * 0.4, type: Math.floor(Math.random() * 3), swayOffset: Math.random() * Math.PI * 2 });
     }
 
-    // Generate grass patches
+    // Generate grass patches — varied warm and cool tones
     this.grasses = [];
     for (let i = 0; i < 400; i++) {
+      const hue = Math.random() < 0.6
+        ? 95 + Math.random() * 30   // greens
+        : 30 + Math.random() * 20;  // warm yellowy browns (dry grass)
       this.grasses.push({
         x: Math.random() * this.worldWidth,
         y: Math.random() * this.worldHeight,
         height: 8 + Math.random() * 16,
         swayOffset: Math.random() * Math.PI * 2,
-        color: `hsl(${110 + Math.random() * 30}, ${60 + Math.random() * 30}%, ${25 + Math.random() * 20}%)`
+        color: `hsl(${hue}, ${55 + Math.random() * 30}%, ${28 + Math.random() * 20}%)`
       });
     }
 
@@ -687,11 +690,11 @@ export class GameEngineService {
 
     ctx.clearRect(0, 0, W, H);
 
-    // Sky/Ground gradient background
+    // Sky/Ground gradient background — warm amber-brown jungle tones
     const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
-    skyGrad.addColorStop(0, '#1a3d1a');
-    skyGrad.addColorStop(0.3, '#2d5a1b');
-    skyGrad.addColorStop(1, '#1a2e0a');
+    skyGrad.addColorStop(0, '#3d2810');
+    skyGrad.addColorStop(0.3, '#4a3218');
+    skyGrad.addColorStop(1, '#1e1208');
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, W, H);
 
@@ -724,22 +727,22 @@ export class GameEngineService {
     const H = this.worldHeight;
     const t = this.animTime * 0.001;
 
-    // ── 1. Sky strip (visible at very top) ──────────────────────────────────
+    // ── 1. Sky strip — warm amber jungle canopy glow ─────────────────────
     const skyGrad = ctx.createLinearGradient(0, 0, 0, H * 0.18);
-    skyGrad.addColorStop(0,   '#3a7d44');  // canopy green-light
-    skyGrad.addColorStop(0.5, '#2e6636');
-    skyGrad.addColorStop(1,   '#1e4522');
+    skyGrad.addColorStop(0,   '#5c3d1e');  // warm amber-brown canopy
+    skyGrad.addColorStop(0.5, '#3d2a0e');
+    skyGrad.addColorStop(1,   '#2a1a08');
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, W, H * 0.18);
 
-    // ── 2. Main ground – rich layered soil ──────────────────────────────────
+    // ── 2. Main ground – rich layered earth tones ────────────────────────
     const groundGrad = ctx.createLinearGradient(0, H * 0.1, 0, H);
-    groundGrad.addColorStop(0,    '#3b6e1a');  // surface turf
-    groundGrad.addColorStop(0.12, '#2d5c12');
-    groundGrad.addColorStop(0.25, '#4a3510');  // topsoil
-    groundGrad.addColorStop(0.45, '#3d2a0c');
-    groundGrad.addColorStop(0.65, '#2e1f08');  // dark earth
-    groundGrad.addColorStop(1,    '#1a1005');
+    groundGrad.addColorStop(0,    '#4a3520');  // surface — warm brown earth
+    groundGrad.addColorStop(0.12, '#3d2a12');
+    groundGrad.addColorStop(0.25, '#5c3d18');  // reddish topsoil
+    groundGrad.addColorStop(0.45, '#3a2808');
+    groundGrad.addColorStop(0.65, '#261a05');  // dark earth
+    groundGrad.addColorStop(1,    '#120c02');
     ctx.fillStyle = groundGrad;
     ctx.fillRect(0, 0, W, H);
 
@@ -765,17 +768,30 @@ export class GameEngineService {
       }
     }
 
-    // ── 4. Moss patches (dark green blobs on soil) ───────────────────────────
+    // ── 4. Moss + earth patches (varied colors, not all green) ─────────────
     const mossSeeds = [
-      [120,80],[350,200],[600,130],[800,310],[200,350],[1000,180],
-      [450,420],[700,500],[1100,400],[300,500],[900,560],[150,480],
-      [550,60],[1250,300],[1400,500],[60,300]
+      {x:120,y:80,  c:'rgba(42,90,18,0.6)'},
+      {x:350,y:200, c:'rgba(80,50,10,0.5)'},
+      {x:600,y:130, c:'rgba(42,90,18,0.5)'},
+      {x:800,y:310, c:'rgba(100,60,15,0.5)'},
+      {x:200,y:350, c:'rgba(50,100,20,0.55)'},
+      {x:1000,y:180,c:'rgba(60,40,10,0.5)'},
+      {x:450,y:420, c:'rgba(42,90,18,0.6)'},
+      {x:700,y:500, c:'rgba(90,55,12,0.4)'},
+      {x:1100,y:400,c:'rgba(42,90,18,0.5)'},
+      {x:300,y:500, c:'rgba(70,45,10,0.5)'},
+      {x:900,y:560, c:'rgba(42,90,18,0.6)'},
+      {x:150,y:480, c:'rgba(55,35,8,0.5)'},
+      {x:550,y:60,  c:'rgba(42,90,18,0.5)'},
+      {x:1250,y:300,c:'rgba(80,50,10,0.4)'},
+      {x:1400,y:500,c:'rgba(42,90,18,0.55)'},
+      {x:60,y:300,  c:'rgba(65,42,10,0.5)'},
     ];
-    mossSeeds.forEach(([mx, my]) => {
+    mossSeeds.forEach(({x: mx, y: my, c}) => {
       const grad = ctx.createRadialGradient(mx, my, 0, mx, my, 55);
-      grad.addColorStop(0,   'rgba(42,90,18,0.7)');
-      grad.addColorStop(0.5, 'rgba(30,70,10,0.4)');
-      grad.addColorStop(1,   'rgba(20,50,5,0)');
+      grad.addColorStop(0,   c);
+      grad.addColorStop(0.5, c.replace(/[\d.]+\)$/, '0.25)'));
+      grad.addColorStop(1,   'rgba(0,0,0,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.ellipse(mx, my, 55, 35, (mx % 6) * 0.5, 0, Math.PI * 2);
@@ -1139,7 +1155,6 @@ export class GameEngineService {
     const ctx = this.ctx;
     const t = this.animTime * 0.001;
 
-    // Sort trees by y so farther-back trees render first (depth)
     const sorted = [...this.trees].sort((a, b) => a.y - b.y);
 
     sorted.forEach(tree => {
@@ -1147,197 +1162,301 @@ export class GameEngineService {
       ctx.save();
       ctx.translate(tree.x, tree.y);
 
-      const trunkH = (50 + tree.type * 8) * tree.scale;
-      const trunkW = (9 + tree.type * 2) * tree.scale;
+      const trunkH = (55 + tree.type * 10) * tree.scale;
+      const trunkW = (10 + tree.type * 2) * tree.scale;
 
-      // ── Root flare ──────────────────────────────────────────────────────
-      ctx.fillStyle = '#3a2008';
-      for (let rf = 0; rf < 5; rf++) {
-        const rfAngle = (rf / 5) * Math.PI + Math.PI * 0.1;
-        const rfX = Math.cos(rfAngle) * trunkW * 1.4;
+      // ── Ground shadow ────────────────────────────────────────────────────
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(8, 5, trunkW * 2.5, trunkH * 0.25, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ── Root flare — thick buttress roots ───────────────────────────────
+      for (let rf = 0; rf < 6; rf++) {
+        const rfAngle = (rf / 6) * Math.PI * 2;
+        const rfLen   = trunkW * 1.6 + rf * 2;
+        const rfX     = Math.cos(rfAngle) * rfLen;
+        const rfY     = Math.sin(rfAngle) * rfLen * 0.4;
+        // Root shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.moveTo(2, 2);
+        ctx.quadraticCurveTo(rfX * 0.6 + 2, rfY * 0.5 + 3, rfX * 1.1 + 2, rfY * 1.1 + 3);
+        ctx.quadraticCurveTo(rfX * 0.5 + 2, rfY * 0.3 + 3, 2, 2);
+        ctx.fill();
+        // Root
+        const rootG = ctx.createLinearGradient(0, 0, rfX, rfY);
+        rootG.addColorStop(0, '#5c3210');
+        rootG.addColorStop(0.5, '#7a4820');
+        rootG.addColorStop(1, '#3a2008');
+        ctx.fillStyle = rootG;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.bezierCurveTo(rfX * 0.5, -trunkH * 0.1, rfX, -trunkH * 0.05, rfX * 1.3, 4);
-        ctx.bezierCurveTo(rfX * 0.8, -trunkH * 0.06, rfX * 0.3, -trunkH * 0.08, 0, 0);
+        ctx.quadraticCurveTo(rfX * 0.6, rfY * 0.5, rfX * 1.1, rfY * 1.1);
+        ctx.quadraticCurveTo(rfX * 0.5, rfY * 0.3, 0, 0);
         ctx.fill();
       }
 
-      // ── Trunk shadow ─────────────────────────────────────────────────────
-      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      // ── Trunk — thick, tapered, realistic bark ───────────────────────────
+      // Trunk shadow (cast to the right)
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.beginPath();
-      ctx.ellipse(trunkW * 0.6, 2, trunkW * 0.7, trunkH * 0.6, 0.15, 0, Math.PI * 2);
-      ctx.fill();
-
-      // ── Trunk body ───────────────────────────────────────────────────────
-      const trunkGrad = ctx.createLinearGradient(-trunkW, 0, trunkW, 0);
-      trunkGrad.addColorStop(0,    '#2e1508');
-      trunkGrad.addColorStop(0.25, '#5c3010');
-      trunkGrad.addColorStop(0.5,  '#7a4218');
-      trunkGrad.addColorStop(0.75, '#5c3010');
-      trunkGrad.addColorStop(1,    '#2e1508');
-      ctx.fillStyle = trunkGrad;
-      ctx.beginPath();
-      ctx.moveTo(-trunkW / 2, 0);
-      ctx.bezierCurveTo(-trunkW * 0.6, -trunkH * 0.4, -trunkW * 0.4, -trunkH * 0.7, -trunkW * 0.3, -trunkH);
-      ctx.lineTo(trunkW * 0.3, -trunkH);
-      ctx.bezierCurveTo(trunkW * 0.4, -trunkH * 0.7, trunkW * 0.6, -trunkH * 0.4, trunkW / 2, 0);
+      ctx.moveTo(trunkW * 0.3, 0);
+      ctx.bezierCurveTo(trunkW * 1.2, -trunkH * 0.3, trunkW * 1.0, -trunkH * 0.7, trunkW * 0.2, -trunkH);
+      ctx.lineTo(trunkW * 0.5, -trunkH);
+      ctx.bezierCurveTo(trunkW * 0.8, -trunkH * 0.6, trunkW * 0.9, -trunkH * 0.3, trunkW * 0.5, 0);
       ctx.closePath();
       ctx.fill();
 
-      // Bark lines
-      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-      ctx.lineWidth = 0.8;
-      for (let b = 0; b < 5; b++) {
-        const by = -(trunkH * 0.15) - b * (trunkH * 0.14);
+      // Trunk main body — 3-tone bark
+      const trunkGrad = ctx.createLinearGradient(-trunkW, 0, trunkW, 0);
+      trunkGrad.addColorStop(0,    '#2a1206');
+      trunkGrad.addColorStop(0.15, '#4a2410');
+      trunkGrad.addColorStop(0.35, '#7a4828');
+      trunkGrad.addColorStop(0.5,  '#9a6038');
+      trunkGrad.addColorStop(0.65, '#7a4828');
+      trunkGrad.addColorStop(0.85, '#4a2410');
+      trunkGrad.addColorStop(1,    '#2a1206');
+      ctx.fillStyle = trunkGrad;
+      ctx.beginPath();
+      ctx.moveTo(-trunkW * 0.55, 0);
+      ctx.bezierCurveTo(-trunkW * 0.65, -trunkH * 0.35, -trunkW * 0.4, -trunkH * 0.65, -trunkW * 0.28, -trunkH);
+      ctx.lineTo(trunkW * 0.28, -trunkH);
+      ctx.bezierCurveTo(trunkW * 0.4, -trunkH * 0.65, trunkW * 0.65, -trunkH * 0.35, trunkW * 0.55, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bark texture — horizontal fissures
+      ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+      for (let b = 0; b < 7; b++) {
+        const by = -(trunkH * 0.12) - b * (trunkH * 0.11);
+        const bw = trunkW * (0.45 - b * 0.02);
+        ctx.lineWidth = 0.9 + b * 0.05;
         ctx.beginPath();
-        ctx.moveTo(-trunkW * 0.45, by);
-        ctx.quadraticCurveTo(0, by - 5, trunkW * 0.45, by);
+        ctx.moveTo(-bw, by);
+        ctx.quadraticCurveTo(0, by - 4 + (b % 2) * 3, bw, by);
         ctx.stroke();
       }
-      // Highlight streak
-      ctx.strokeStyle = 'rgba(200,150,80,0.18)';
-      ctx.lineWidth = 2;
+      // Vertical bark grain
+      ctx.strokeStyle = 'rgba(200,130,60,0.12)';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(-trunkW * 0.1, -trunkH * 0.1);
-      ctx.lineTo(-trunkW * 0.15, -trunkH * 0.85);
+      ctx.moveTo(-trunkW * 0.08, -trunkH * 0.08);
+      ctx.lineTo(-trunkW * 0.12, -trunkH * 0.88);
       ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(trunkW * 0.05, -trunkH * 0.1);
+      ctx.lineTo(trunkW * 0.08, -trunkH * 0.82);
+      ctx.stroke();
+
+      // Moss on trunk — darker green patches on shaded side
+      ctx.fillStyle = 'rgba(30,70,15,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(-trunkW * 0.35, -trunkH * 0.4, trunkW * 0.2, trunkH * 0.12, -0.3, 0, Math.PI * 2);
+      ctx.fill();
 
       // ── Canopy ────────────────────────────────────────────────────────────
       ctx.save();
       ctx.translate(sway * tree.scale, -trunkH);
 
       if (tree.type === 0) {
-        // ── Broad tropical canopy ──────────────────────────────────────────
-        // Under-canopy shadow blob
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        // ── Type 0: Dense broad-leaf tropical tree ────────────────────────
+        // Under-canopy darkness
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
         ctx.beginPath();
-        ctx.ellipse(8, 12, 55 * tree.scale, 18 * tree.scale, 0, 0, Math.PI * 2);
+        ctx.ellipse(6, 14, 58 * tree.scale, 16 * tree.scale, 0, 0, Math.PI * 2);
         ctx.fill();
-        // 3 layered circles, richer hues
-        const layerColors = [
-          ['#1e5c0a','#2d7c12'],  // deepest
-          ['#2a7515','#3d9820'],  // mid
-          ['#36941c','#4cb829'],  // brightest
+
+        // 4 layered foliage clumps — varied greens + dark interior
+        const layers = [
+          { r: 38, y:  0,  c0: '#1a4a08', c1: '#2a6a12', c2: '#3a8a1e' },
+          { r: 46, y: -10, c0: '#1e5a0a', c1: '#2e7a16', c2: '#3e9a22' },
+          { r: 40, y: -20, c0: '#22600c', c1: '#308020', c2: '#40a030' },
+          { r: 28, y: -30, c0: '#286a10', c1: '#388a20', c2: '#48a830' },
         ];
-        for (let layer = 0; layer < 3; layer++) {
-          const r   = (45 + layer * 16) * tree.scale;
-          const yOff = -layer * 12 * tree.scale;
-          const grad = ctx.createRadialGradient(-r*0.2, yOff - r*0.3, r*0.05, 0, yOff, r);
-          grad.addColorStop(0,   layerColors[layer][1]);
-          grad.addColorStop(0.55, layerColors[layer][0]);
-          grad.addColorStop(1,   '#152e06');
+        layers.forEach(({ r, y, c0, c1, c2 }) => {
+          const rs = r * tree.scale;
+          const grad = ctx.createRadialGradient(-rs * 0.25, y - rs * 0.35, rs * 0.05, 0, y, rs);
+          grad.addColorStop(0,   c2);
+          grad.addColorStop(0.5, c1);
+          grad.addColorStop(0.8, c0);
+          grad.addColorStop(1,   '#0a2005');
           ctx.fillStyle = grad;
           ctx.beginPath();
-          ctx.arc(0, yOff, r, 0, Math.PI * 2);
+          ctx.arc(0, y, rs, 0, Math.PI * 2);
           ctx.fill();
-          // Leaf edge details
-          ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.arc(0, yOff, r, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-        // Sun catch on top
-        ctx.fillStyle = 'rgba(180,255,120,0.08)';
+          // Leaf edge lumps
+          for (let lm = 0; lm < 8; lm++) {
+            const la = (lm / 8) * Math.PI * 2;
+            const lx = Math.cos(la) * (rs - 4);
+            const ly = y + Math.sin(la) * (rs - 4);
+            ctx.fillStyle = c1;
+            ctx.beginPath();
+            ctx.arc(lx, ly, rs * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        });
+
+        // Sunlit top highlight
+        ctx.fillStyle = 'rgba(160,255,100,0.07)';
         ctx.beginPath();
-        ctx.arc(-14 * tree.scale, -38 * tree.scale, 20 * tree.scale, 0, Math.PI * 2);
+        ctx.arc(-16 * tree.scale, -34 * tree.scale, 22 * tree.scale, 0, Math.PI * 2);
         ctx.fill();
 
       } else if (tree.type === 1) {
-        // ── Palm tree ─────────────────────────────────────────────────────
-        const frondColors = ['#1e5c0a','#2d7510','#3a9018','#2a6010','#1a4808','#33841a'];
-        for (let i = 0; i < 7; i++) {
-          const fAngle = (i / 7) * Math.PI * 2 + t * 0.4 + tree.swayOffset;
-          const fLen   = (55 + i * 5) * tree.scale;
-          const droop  = Math.PI * 0.22;
+        // ── Type 1: Realistic palm tree ───────────────────────────────────
+        const frondPairs = [
+          { a: -1.6, len: 60, c: '#1e5c0a' },
+          { a: -0.9, len: 68, c: '#2a7010' },
+          { a: -0.3, len: 72, c: '#327818' },
+          { a:  0.3, len: 72, c: '#327818' },
+          { a:  0.9, len: 68, c: '#2a7010' },
+          { a:  1.6, len: 60, c: '#1e5c0a' },
+          { a: -2.3, len: 55, c: '#1a5008' },
+          { a:  2.3, len: 55, c: '#1a5008' },
+        ];
+        frondPairs.forEach(({ a, len, c }) => {
+          const fLen = len * tree.scale;
+          const droop = 0.28;
           ctx.save();
-          ctx.rotate(fAngle);
-          // Frond
-          const fg = ctx.createLinearGradient(0, 0, fLen, 0);
-          fg.addColorStop(0,   frondColors[i % frondColors.length]);
-          fg.addColorStop(0.5, frondColors[(i + 2) % frondColors.length]);
-          fg.addColorStop(1,   '#0e3005');
-          ctx.fillStyle = fg;
+          ctx.rotate(a + Math.sin(t * 0.8 + tree.swayOffset + a) * 0.08);
+
+          // Frond stem
+          ctx.strokeStyle = '#1a4a06';
+          ctx.lineWidth = 2 * tree.scale;
           ctx.beginPath();
           ctx.moveTo(0, 0);
           ctx.bezierCurveTo(
-            fLen * 0.3, -8 * tree.scale,
-            fLen * 0.7, fLen * Math.sin(droop) * 0.5,
+            fLen * 0.3, -5 * tree.scale,
+            fLen * 0.6, fLen * Math.sin(droop) * 0.4,
             fLen, fLen * Math.sin(droop)
           );
-          ctx.bezierCurveTo(
-            fLen * 0.7, fLen * Math.sin(droop) * 0.5 + 6,
-            fLen * 0.3, -8 * tree.scale + 6, 0, 0
-          );
-          ctx.fill();
-          // Leaflets on frond
-          for (let lf = 1; lf <= 5; lf++) {
-            const lprog = lf / 6;
-            const lx = fLen * lprog * 0.9;
-            const ly = lf * 3 * tree.scale * Math.sin(droop);
-            ctx.strokeStyle = 'rgba(50,150,20,0.4)';
-            ctx.lineWidth = 0.8;
+          ctx.stroke();
+
+          // Leaflets along frond
+          for (let lf = 2; lf <= 10; lf++) {
+            const prog = lf / 11;
+            const lx = fLen * prog;
+            const ly = fLen * prog * Math.sin(droop) * 0.7;
+            const lSize = (14 - lf) * tree.scale * 0.8;
+            const lAngle = droop * prog * 0.8;
+
+            ctx.fillStyle = c;
+            ctx.save();
+            ctx.translate(lx, ly);
+            ctx.rotate(lAngle);
+            // Left leaflet
             ctx.beginPath();
-            ctx.moveTo(lx, ly);
-            ctx.lineTo(lx + 8, ly - 10);
-            ctx.moveTo(lx, ly);
-            ctx.lineTo(lx + 8, ly + 4);
-            ctx.stroke();
+            ctx.moveTo(0, 0);
+            ctx.bezierCurveTo(-4, -lSize * 0.5, -8, -lSize * 0.8, -lSize, 0);
+            ctx.bezierCurveTo(-8, lSize * 0.3, -4, lSize * 0.2, 0, 0);
+            ctx.fill();
+            // Right leaflet
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.bezierCurveTo(4, -lSize * 0.5, 8, -lSize * 0.8, lSize, 0);
+            ctx.bezierCurveTo(8, lSize * 0.3, 4, lSize * 0.2, 0, 0);
+            ctx.fill();
+            ctx.restore();
           }
           ctx.restore();
-        }
-        // Coconuts
-        for (let cn = 0; cn < 3; cn++) {
-          const ca = (cn / 3) * Math.PI * 2;
-          ctx.fillStyle = '#5a3a10';
+        });
+
+        // Coconut cluster
+        for (let cn = 0; cn < 4; cn++) {
+          const ca = (cn / 4) * Math.PI * 2;
+          const cr = 7 * tree.scale;
+          ctx.fillStyle = '#6b4510';
           ctx.beginPath();
-          ctx.arc(Math.cos(ca) * 8, Math.sin(ca) * 5, 5, 0, Math.PI * 2);
+          ctx.arc(Math.cos(ca) * 9 * tree.scale, Math.sin(ca) * 6 * tree.scale - 2, cr, 0, Math.PI * 2);
           ctx.fill();
+          // Coconut detail
           ctx.fillStyle = '#3a2008';
           ctx.beginPath();
-          ctx.arc(Math.cos(ca) * 8 - 1, Math.sin(ca) * 5 - 1, 2, 0, Math.PI * 2);
+          ctx.arc(Math.cos(ca) * 9 * tree.scale - 1, Math.sin(ca) * 6 * tree.scale - 3, cr * 0.4, 0, Math.PI * 2);
           ctx.fill();
+          ctx.strokeStyle = '#2a1005';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.arc(Math.cos(ca) * 9 * tree.scale, Math.sin(ca) * 6 * tree.scale - 2, cr, 0, Math.PI * 2);
+          ctx.stroke();
         }
 
       } else {
-        // ── Tall jungle tree (irregular silhouette) ────────────────────────
+        // ── Type 2: Tall emergent jungle tree with umbrella crown ─────────
+        // Cast shadow
         ctx.fillStyle = 'rgba(0,0,0,0.18)';
         ctx.beginPath();
-        ctx.ellipse(10, 15, 50 * tree.scale, 15 * tree.scale, 0, 0, Math.PI * 2);
+        ctx.ellipse(10, 18, 52 * tree.scale, 14 * tree.scale, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        const irregularColors = [
-          '#1a5c08','#236e10','#2d8018','#1e6c0e','#358a1e'
+        // Multiple irregular foliage masses — like real jungle canopy
+        const masses = [
+          { x:  0, y:   0, rx: 40, ry: 22, angle: 0,    dark: '#163808', mid: '#204f0c', light: '#2d6e10' },
+          { x: -22, y: -14, rx: 28, ry: 18, angle: -0.3, dark: '#1a4208', mid: '#26580e', light: '#337812' },
+          { x:  22, y: -12, rx: 30, ry: 20, angle:  0.2, dark: '#1c4408', mid: '#284e0e', light: '#357010' },
+          { x:  -8, y: -28, rx: 24, ry: 16, angle: -0.1, dark: '#1e4a0a', mid: '#2c6412', light: '#3a8218' },
+          { x:  12, y: -28, rx: 22, ry: 15, angle:  0.15,dark: '#204c0a', mid: '#2e6614', light: '#3c841a' },
+          { x:   2, y: -42, rx: 18, ry: 13, angle:  0,   dark: '#226010', mid: '#307016', light: '#40901e' },
         ];
-        for (let layer = 3; layer >= 0; layer--) {
-          const baseW = (42 - layer * 4) * tree.scale;
-          const baseH = (28 + layer * 8) * tree.scale;
-          const yBase = -layer * 14 * tree.scale;
-          // Irregular blob shape
-          ctx.fillStyle = irregularColors[layer % irregularColors.length];
+
+        masses.forEach(({ x, y, rx, ry, angle, dark, mid, light }) => {
+          const rxs = rx * tree.scale;
+          const rys = ry * tree.scale;
+          const xs  = x * tree.scale;
+          const ys  = y * tree.scale;
+
+          const grad = ctx.createRadialGradient(xs - rxs * 0.2, ys - rys * 0.3, rxs * 0.05, xs, ys, rxs);
+          grad.addColorStop(0,   light);
+          grad.addColorStop(0.5, mid);
+          grad.addColorStop(0.85, dark);
+          grad.addColorStop(1,   '#080f03');
+          ctx.fillStyle = grad;
+
+          ctx.save();
+          ctx.translate(xs, ys);
+          ctx.rotate(angle);
+          // Jagged leaf-mass edge
           ctx.beginPath();
-          ctx.moveTo(0, yBase);
-          const pts = 8;
+          const pts = 10;
           for (let p = 0; p <= pts; p++) {
-            const pAngle = (p / pts) * Math.PI * 2;
-            const jitter = 0.75 + Math.sin(pAngle * 3 + layer + tree.swayOffset) * 0.28;
-            ctx.lineTo(
-              Math.cos(pAngle) * baseW * jitter,
-              yBase + Math.sin(pAngle) * baseH * jitter
-            );
+            const pa = (p / pts) * Math.PI * 2;
+            const jitter = 0.82 + Math.sin(pa * 4 + tree.swayOffset + p) * 0.2;
+            const ex = Math.cos(pa) * rxs * jitter;
+            const ey = Math.sin(pa) * rys * jitter;
+            p === 0 ? ctx.moveTo(ex, ey) : ctx.lineTo(ex, ey);
           }
           ctx.closePath();
           ctx.fill();
-          // Edge shadow
-          ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-          ctx.lineWidth = 1.5;
+
+          // Edge leaf bumps
+          ctx.fillStyle = mid;
+          for (let bm = 0; bm < 6; bm++) {
+            const ba = (bm / 6) * Math.PI * 2 + tree.swayOffset;
+            ctx.beginPath();
+            ctx.arc(Math.cos(ba) * rxs * 0.9, Math.sin(ba) * rys * 0.9, rxs * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        });
+
+        // Top sunlit highlight
+        ctx.fillStyle = 'rgba(140,255,80,0.06)';
+        ctx.beginPath();
+        ctx.arc(-8 * tree.scale, -46 * tree.scale, 20 * tree.scale, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Epiphytic plants / aerial roots hanging
+        for (let ar = 0; ar < 3; ar++) {
+          const arX = (-15 + ar * 15) * tree.scale;
+          const arLen = (20 + ar * 8) * tree.scale;
+          ctx.strokeStyle = 'rgba(30,80,10,0.5)';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(arX, 5);
+          ctx.lineTo(arX + Math.sin(t + ar) * 4, arLen);
           ctx.stroke();
         }
-        // Top highlight
-        ctx.fillStyle = 'rgba(150,255,100,0.07)';
-        ctx.beginPath();
-        ctx.arc(-10 * tree.scale, -42 * tree.scale, 18 * tree.scale, 0, Math.PI * 2);
-        ctx.fill();
       }
 
       ctx.restore(); // canopy
@@ -1351,32 +1470,442 @@ export class GameEngineService {
 
     this.animals.forEach(a => {
       if (!a.alive) return;
-      const bob = Math.sin(t + a.bobOffset) * 4;
+      const bob = Math.sin(t + a.bobOffset) * 3;
 
       ctx.save();
       ctx.translate(a.x, a.y + bob);
 
-      // Shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      // Ground shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.beginPath();
-      ctx.ellipse(0, 10, 12, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 14, 14, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw emoji animal
-      ctx.font = '20px serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(a.emoji, 0, 0);
+      // Draw each animal type as a real pixel-art creature
+      switch (a.type) {
+        case 'rabbit':   this.drawRabbit(ctx, t, a.bobOffset); break;
+        case 'frog':     this.drawFrog(ctx, t, a.bobOffset); break;
+        case 'bird':     this.drawBird(ctx, t, a.bobOffset); break;
+        case 'mouse':    this.drawMouse(ctx, t, a.bobOffset); break;
+        case 'butterfly':this.drawButterfly(ctx, t, a.bobOffset); break;
+      }
 
-      // Glow ring (attractive)
-      ctx.strokeStyle = 'rgba(255,255,100,0.3)';
-      ctx.lineWidth = 2;
+      // Pulsing attract ring
+      const ring = 18 + Math.sin(t * 2 + a.bobOffset) * 3;
+      ctx.strokeStyle = 'rgba(255,240,80,0.35)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(0, 0, 16 + Math.sin(t * 2 + a.bobOffset) * 3, 0, Math.PI * 2);
+      ctx.arc(0, 0, ring, 0, Math.PI * 2);
       ctx.stroke();
 
       ctx.restore();
     });
+  }
+
+  drawRabbit(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const hop = Math.abs(Math.sin(t * 3 + offset)) * 4;
+    ctx.save();
+    ctx.translate(0, -hop);
+
+    // Body — creamy white
+    ctx.fillStyle = '#e8ddc8';
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 9, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#c8b89a';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Head
+    ctx.fillStyle = '#e8ddc8';
+    ctx.beginPath();
+    ctx.ellipse(0, -8, 7, 6.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#c8b89a';
+    ctx.stroke();
+
+    // Ears
+    ctx.fillStyle = '#e8ddc8';
+    ctx.beginPath();
+    ctx.ellipse(-4, -18, 2.5, 7, -0.2, 0, Math.PI * 2);
+    ctx.ellipse( 4, -18, 2.5, 7,  0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#c8b89a';
+    ctx.stroke();
+    // Inner ear pink
+    ctx.fillStyle = '#f0a0a0';
+    ctx.beginPath();
+    ctx.ellipse(-4, -18, 1.2, 5, -0.2, 0, Math.PI * 2);
+    ctx.ellipse( 4, -18, 1.2, 5,  0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes — dark brown
+    ctx.fillStyle = '#1a0a00';
+    ctx.beginPath();
+    ctx.arc(-2.5, -9, 1.5, 0, Math.PI * 2);
+    ctx.arc( 2.5, -9, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Eye shine
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-1.8, -9.6, 0.5, 0, Math.PI * 2);
+    ctx.arc( 3.2, -9.6, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Nose
+    ctx.fillStyle = '#f08080';
+    ctx.beginPath();
+    ctx.arc(0, -6.5, 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tail
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(0, 14, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Legs
+    ctx.fillStyle = '#d8c8b0';
+    ctx.beginPath();
+    ctx.ellipse(-5, 12, 3.5, 5, -0.3, 0, Math.PI * 2);
+    ctx.ellipse( 5, 12, 3.5, 5,  0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  drawFrog(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const blink = Math.sin(t * 2 + offset) > 0.8;
+    ctx.save();
+
+    // Legs — wide splayed
+    ctx.fillStyle = '#3a8040';
+    ctx.beginPath();
+    ctx.ellipse(-10, 8, 7, 4, -0.6, 0, Math.PI * 2);
+    ctx.ellipse( 10, 8, 7, 4,  0.6, 0, Math.PI * 2);
+    ctx.fill();
+    // Feet
+    ctx.fillStyle = '#2a6030';
+    ctx.beginPath();
+    ctx.ellipse(-16, 10, 5, 3, -0.3, 0, Math.PI * 2);
+    ctx.ellipse( 16, 10, 5, 3,  0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body — bright jungle green
+    const bodyGrad = ctx.createRadialGradient(-3, -2, 1, 0, 2, 11);
+    bodyGrad.addColorStop(0, '#5fbd5f');
+    bodyGrad.addColorStop(0.6, '#3a9040');
+    bodyGrad.addColorStop(1, '#1e6020');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 11, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1e5018';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Belly — pale
+    ctx.fillStyle = '#c8e8a0';
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 6, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    const headGrad = ctx.createRadialGradient(-2, -10, 1, 0, -8, 8);
+    headGrad.addColorStop(0, '#5fbd5f');
+    headGrad.addColorStop(1, '#2a7a30');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -8, 9, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1e5018';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Eyes — bulgy on top
+    ctx.fillStyle = '#2a8030';
+    ctx.beginPath();
+    ctx.ellipse(-6, -13, 4, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse( 6, -13, 4, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = blink ? '#2a8030' : '#f0d800';
+    ctx.beginPath();
+    ctx.ellipse(-6, -13, 3, blink ? 0.8 : 3, 0, 0, Math.PI * 2);
+    ctx.ellipse( 6, -13, 3, blink ? 0.8 : 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (!blink) {
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(-6, -13, 1.5, 0, Math.PI * 2);
+      ctx.arc( 6, -13, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(-5, -14, 0.6, 0, Math.PI * 2);
+      ctx.arc( 7, -14, 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Mouth line
+    ctx.strokeStyle = '#1a4010';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, -6, 5, 0.1, Math.PI - 0.1);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  drawBird(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const wingFlap = Math.sin(t * 6 + offset) * 0.4;
+    ctx.save();
+
+    // Wings — flapping
+    ctx.save();
+    ctx.rotate(-wingFlap);
+    ctx.fillStyle = '#e85a10';
+    ctx.beginPath();
+    ctx.ellipse(-10, -2, 12, 5, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c04000';
+    ctx.beginPath();
+    ctx.ellipse(-10, -2, 9, 3, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.rotate(wingFlap);
+    ctx.fillStyle = '#e85a10';
+    ctx.beginPath();
+    ctx.ellipse(10, -2, 12, 5, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c04000';
+    ctx.beginPath();
+    ctx.ellipse(10, -2, 9, 3, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Body — vivid orange-red
+    const bodyGrad = ctx.createRadialGradient(-2, -2, 1, 0, 2, 9);
+    bodyGrad.addColorStop(0, '#ff7030');
+    bodyGrad.addColorStop(0.6, '#e84010');
+    bodyGrad.addColorStop(1, '#a02800');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 8, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#802000';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Tail feathers
+    ctx.fillStyle = '#c03000';
+    ctx.beginPath();
+    ctx.moveTo(-4, 11);
+    ctx.lineTo(-7, 18);
+    ctx.lineTo(-2, 13);
+    ctx.lineTo(0, 19);
+    ctx.lineTo(2, 13);
+    ctx.lineTo(7, 18);
+    ctx.lineTo(4, 11);
+    ctx.closePath();
+    ctx.fill();
+
+    // Head
+    const headGrad = ctx.createRadialGradient(-2, -10, 1, 0, -9, 6);
+    headGrad.addColorStop(0, '#ff7030');
+    headGrad.addColorStop(1, '#c03010');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.arc(0, -9, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Crest
+    ctx.fillStyle = '#ff9040';
+    ctx.beginPath();
+    ctx.moveTo(-2, -14);
+    ctx.lineTo(0, -20);
+    ctx.lineTo(2, -14);
+    ctx.closePath();
+    ctx.fill();
+
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(3, -10, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1a0000';
+    ctx.beginPath();
+    ctx.arc(3.5, -10, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(4, -10.5, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beak
+    ctx.fillStyle = '#f0c020';
+    ctx.beginPath();
+    ctx.moveTo(5, -9);
+    ctx.lineTo(12, -8);
+    ctx.lineTo(10, -6);
+    ctx.lineTo(5, -7);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  drawMouse(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const wiggle = Math.sin(t * 5 + offset) * 2;
+    ctx.save();
+
+    // Tail — long curvy
+    ctx.strokeStyle = '#c09070';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 10);
+    ctx.bezierCurveTo(5 + wiggle, 15, 10, 12, 18, 16);
+    ctx.stroke();
+
+    // Body — warm grey-brown
+    const bodyGrad = ctx.createRadialGradient(-2, 0, 1, 0, 2, 9);
+    bodyGrad.addColorStop(0, '#b8a090');
+    bodyGrad.addColorStop(0.6, '#907060');
+    bodyGrad.addColorStop(1, '#604838');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 8, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#504030';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Head
+    ctx.fillStyle = '#a89080';
+    ctx.beginPath();
+    ctx.ellipse(0, -8, 7, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#504030';
+    ctx.stroke();
+
+    // Ears — large round pink
+    ctx.fillStyle = '#907060';
+    ctx.beginPath();
+    ctx.arc(-6, -14, 5, 0, Math.PI * 2);
+    ctx.arc( 6, -14, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e09090';
+    ctx.beginPath();
+    ctx.arc(-6, -14, 3, 0, Math.PI * 2);
+    ctx.arc( 6, -14, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes — small beady
+    ctx.fillStyle = '#1a1010';
+    ctx.beginPath();
+    ctx.arc(-2.5, -9, 1.8, 0, Math.PI * 2);
+    ctx.arc( 2.5, -9, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-1.8, -9.6, 0.6, 0, Math.PI * 2);
+    ctx.arc( 3.2, -9.6, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Snout
+    ctx.fillStyle = '#c09080';
+    ctx.beginPath();
+    ctx.ellipse(0, -5.5, 3, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#a06050';
+    ctx.beginPath();
+    ctx.arc(0, -5, 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Whiskers
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 0.7;
+    for (let w = -1; w <= 1; w += 2) {
+      ctx.beginPath();
+      ctx.moveTo(w * 2, -6);
+      ctx.lineTo(w * 12, -5 + wiggle * 0.3);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(w * 2, -5);
+      ctx.lineTo(w * 12, -7 - wiggle * 0.3);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  drawButterfly(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const flap = Math.sin(t * 7 + offset);
+    const wingX = Math.abs(flap) * 14 + 4;
+    ctx.save();
+
+    // Upper wings — vivid purple-blue
+    ctx.save();
+    ctx.scale(wingX / 18, 1);
+    ctx.fillStyle = '#9040e0';
+    ctx.beginPath();
+    ctx.ellipse(-9, -6, 14, 10, -0.4, 0, Math.PI * 2);
+    ctx.ellipse( 9, -6, 14, 10,  0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Wing pattern
+    ctx.fillStyle = '#c080ff';
+    ctx.beginPath();
+    ctx.ellipse(-8, -7, 8, 5, -0.4, 0, Math.PI * 2);
+    ctx.ellipse( 8, -7, 8, 5,  0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f0c0ff';
+    ctx.beginPath();
+    ctx.ellipse(-7, -8, 4, 2.5, -0.4, 0, Math.PI * 2);
+    ctx.ellipse( 7, -8, 4, 2.5,  0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Lower wings — orange accents
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.ellipse(-8, 4, 10, 7, 0.3, 0, Math.PI * 2);
+    ctx.ellipse( 8, 4, 10, 7, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffcc00';
+    ctx.beginPath();
+    ctx.ellipse(-7, 4, 5, 4, 0.3, 0, Math.PI * 2);
+    ctx.ellipse( 7, 4, 5, 4, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Body — thin dark
+    ctx.fillStyle = '#2a1060';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 2.5, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = '#3a1080';
+    ctx.beginPath();
+    ctx.arc(0, -12, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Antennae
+    ctx.strokeStyle = '#2a1060';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-1, -14);
+    ctx.bezierCurveTo(-5, -20, -8, -22, -9, -25);
+    ctx.moveTo( 1, -14);
+    ctx.bezierCurveTo( 5, -20,  8, -22,  9, -25);
+    ctx.stroke();
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(-9, -25, 1.5, 0, Math.PI * 2);
+    ctx.arc( 9, -25, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
   }
 
   renderHunterSightCones() {
@@ -1524,107 +2053,120 @@ export class GameEngineService {
         ctx.globalAlpha = Math.max(0, 1 - this.deathTimer / 1000);
       }
 
-      // Body gradient
-      const r = isHead ? cs * 0.45 : cs * (0.35 - progress * 0.05);
-
-      // Snake body color - gradient from head to tail
-      const hue = 100 + progress * 20;
-      const saturation = 70 - progress * 20;
-      const lightness = 35 + progress * 10;
+      const r = isHead ? cs * 0.48 : cs * (0.38 - progress * 0.04);
 
       if (!isHead) {
-        // Scale pattern
-        ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        // Vivid yellow-green body with dark diamond pattern
+        const baseHue = 80;  // yellow-green — not all-green
+        const bodyGrad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, 1, x, y, r);
+        bodyGrad.addColorStop(0,   `hsl(${baseHue + progress*15}, 80%, 55%)`);
+        bodyGrad.addColorStop(0.5, `hsl(${baseHue + progress*15}, 70%, 35%)`);
+        bodyGrad.addColorStop(1,   `hsl(${baseHue + progress*15}, 60%, 20%)`);
+        ctx.fillStyle = bodyGrad;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
 
-        // Scale detail
+        // Diamond scale pattern every 2 segments
         if (i % 2 === 0) {
-          ctx.fillStyle = `hsl(${hue + 10}, ${saturation - 10}%, ${lightness - 8}%)`;
+          ctx.fillStyle = `hsl(${baseHue - 20 + progress*10}, 60%, 18%)`;
           ctx.beginPath();
-          ctx.ellipse(x, y, r * 0.7, r * 0.4, 0, 0, Math.PI * 2);
+          ctx.ellipse(x, y, r * 0.65, r * 0.45, Math.PI * 0.25, 0, Math.PI * 2);
           ctx.fill();
         }
 
-        // Outline
-        ctx.strokeStyle = `hsl(${hue - 10}, ${saturation}%, ${lightness - 15}%)`;
-        ctx.lineWidth = 1;
+        // Bright yellow belly stripe
+        if (i % 3 === 0) {
+          ctx.fillStyle = `rgba(230, 200, 40, 0.35)`;
+          ctx.beginPath();
+          ctx.ellipse(x, y, r * 0.35, r * 0.25, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Dark outline
+        ctx.strokeStyle = `hsl(${baseHue - 20}, 60%, 12%)`;
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.stroke();
       }
 
       if (isHead) {
-        // Head
-        const headGrad = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, r);
-        headGrad.addColorStop(0, '#5ec832');
-        headGrad.addColorStop(0.6, '#3a8a18');
-        headGrad.addColorStop(1, '#1e5a08');
+        // Head — brighter, distinct from body
+        const headGrad = ctx.createRadialGradient(x - r*0.35, y - r*0.35, 1, x, y, r);
+        headGrad.addColorStop(0,   '#a0e040');  // bright lime
+        headGrad.addColorStop(0.5, '#60b020');
+        headGrad.addColorStop(1,   '#2a6008');
         ctx.fillStyle = headGrad;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
 
+        // Head plate pattern
+        ctx.fillStyle = 'rgba(40,100,5,0.5)';
+        ctx.beginPath();
+        ctx.ellipse(x, y, r * 0.7, r * 0.45, 0, 0, Math.PI * 2);
+        ctx.fill();
+
         // Head outline
-        ctx.strokeStyle = '#1a4505';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#1a4005';
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.stroke();
 
         // Eyes
         const eyeAngle = this.direction === 'right' ? 0 : this.direction === 'left' ? Math.PI : this.direction === 'up' ? -Math.PI / 2 : Math.PI / 2;
-        const ex1 = x + Math.cos(eyeAngle + 0.5) * r * 0.55;
-        const ey1 = y + Math.sin(eyeAngle + 0.5) * r * 0.55;
-        const ex2 = x + Math.cos(eyeAngle - 0.5) * r * 0.55;
-        const ey2 = y + Math.sin(eyeAngle - 0.5) * r * 0.55;
+        const ex1 = x + Math.cos(eyeAngle + 0.5) * r * 0.58;
+        const ey1 = y + Math.sin(eyeAngle + 0.5) * r * 0.58;
+        const ex2 = x + Math.cos(eyeAngle - 0.5) * r * 0.58;
+        const ey2 = y + Math.sin(eyeAngle - 0.5) * r * 0.58;
 
-        // Eye white
-        ctx.fillStyle = '#fff';
+        // Eye white + golden iris
+        ctx.fillStyle = '#ffe080';
         ctx.beginPath();
-        ctx.arc(ex1, ey1, 3.5, 0, Math.PI * 2);
-        ctx.arc(ex2, ey2, 3.5, 0, Math.PI * 2);
+        ctx.arc(ex1, ey1, 3.8, 0, Math.PI * 2);
+        ctx.arc(ex2, ey2, 3.8, 0, Math.PI * 2);
         ctx.fill();
 
-        // Pupil
         const blink = this.snakeEyeBlinkTimer % 3000 > 2900;
-        ctx.fillStyle = '#111';
+        ctx.fillStyle = '#1a0000';
         if (blink) {
-          ctx.fillRect(ex1 - 3.5, ey1, 7, 1);
-          ctx.fillRect(ex2 - 3.5, ey2, 7, 1);
+          ctx.fillRect(ex1 - 3.8, ey1 - 0.5, 7.6, 1);
+          ctx.fillRect(ex2 - 3.8, ey2 - 0.5, 7.6, 1);
         } else {
+          // Slit pupil (reptilian)
           ctx.beginPath();
-          ctx.arc(ex1 + 0.5, ey1, 2, 0, Math.PI * 2);
-          ctx.arc(ex2 + 0.5, ey2, 2, 0, Math.PI * 2);
+          ctx.ellipse(ex1 + 0.5, ey1, 1.2, 2.8, 0, 0, Math.PI * 2);
+          ctx.ellipse(ex2 + 0.5, ey2, 1.2, 2.8, 0, 0, Math.PI * 2);
           ctx.fill();
           // Eye shine
-          ctx.fillStyle = '#fff';
+          ctx.fillStyle = 'rgba(255,255,255,0.8)';
           ctx.beginPath();
-          ctx.arc(ex1 + 1, ey1 - 1, 0.8, 0, Math.PI * 2);
-          ctx.arc(ex2 + 1, ey2 - 1, 0.8, 0, Math.PI * 2);
+          ctx.arc(ex1 + 0.8, ey1 - 1.2, 0.9, 0, Math.PI * 2);
+          ctx.arc(ex2 + 0.8, ey2 - 1.2, 0.9, 0, Math.PI * 2);
           ctx.fill();
         }
 
         // Tongue
         if (this.snakeTongueOut) {
-          ctx.strokeStyle = '#f44';
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = '#e02020';
+          ctx.lineWidth = 1.8;
           const tx = x + Math.cos(eyeAngle) * r;
           const ty = y + Math.sin(eyeAngle) * r;
           ctx.beginPath();
           ctx.moveTo(tx, ty);
-          const tongueLen = 14;
+          const tongueLen = 16;
           const tx2 = tx + Math.cos(eyeAngle) * tongueLen;
           const ty2 = ty + Math.sin(eyeAngle) * tongueLen;
           ctx.lineTo(tx2, ty2);
           ctx.stroke();
-          // Fork
+          ctx.lineWidth = 1.2;
           ctx.beginPath();
           ctx.moveTo(tx2, ty2);
-          ctx.lineTo(tx2 + Math.cos(eyeAngle + 0.4) * 6, ty2 + Math.sin(eyeAngle + 0.4) * 6);
+          ctx.lineTo(tx2 + Math.cos(eyeAngle + 0.45) * 7, ty2 + Math.sin(eyeAngle + 0.45) * 7);
           ctx.moveTo(tx2, ty2);
-          ctx.lineTo(tx2 + Math.cos(eyeAngle - 0.4) * 6, ty2 + Math.sin(eyeAngle - 0.4) * 6);
+          ctx.lineTo(tx2 + Math.cos(eyeAngle - 0.45) * 7, ty2 + Math.sin(eyeAngle - 0.45) * 7);
           ctx.stroke();
         }
       }
@@ -1888,32 +2430,37 @@ export class GameEngineService {
     ctx.restore();
 
     // ── Skull / hunter icon ────────────────────────────────────────────────
-    ctx.font = '54px serif';
+    ctx.font = '60px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const iconBob = Math.sin(t * 3) * 4;
-    ctx.fillText(this.killedBy === 'hunter' ? '🎯' : '💀', cx, panY + 60 + iconBob);
+    ctx.fillText(this.killedBy === 'hunter' ? '🎯' : '💀', cx, panY + 64 + iconBob);
 
     // ── GAME OVER title ────────────────────────────────────────────────────
     ctx.save();
-    ctx.shadowColor = '#ff2222';
-    ctx.shadowBlur  = 22;
-    ctx.font = 'bold 44px "Arial Black", Arial';
-    ctx.fillStyle = '#ff3333';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur  = 30;
+    ctx.font = 'bold 52px "Arial Black", Arial';
+    // Red gradient text
+    const goGrad = ctx.createLinearGradient(cx - 160, 0, cx + 160, 0);
+    goGrad.addColorStop(0, '#ff2222');
+    goGrad.addColorStop(0.5, '#ff6666');
+    goGrad.addColorStop(1, '#ff2222');
+    ctx.fillStyle = goGrad;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('GAME  OVER', cx, panY + 120);
+    ctx.fillText('GAME  OVER', cx, panY + 128);
     ctx.restore();
 
     // ── Kill message ──────────────────────────────────────────────────────
-    ctx.font = '15px Arial';
-    ctx.fillStyle = '#ffaaaa';
+    ctx.font = '16px Arial';
+    ctx.fillStyle = '#ffbbbb';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     const msg = this.killedBy === 'hunter'
-      ? '⚠️  A hunter spotted you and pulled the trigger!'
-      : '💥  You crashed into the jungle wall!';
-    ctx.fillText(msg, cx, panY + 152);
+      ? '🔫  A hunter spotted you and pulled the trigger!'
+      : '💥  You crashed into the jungle boundary!';
+    ctx.fillText(msg, cx, panY + 158);
 
     // ── Stats row ─────────────────────────────────────────────────────────
     const statsY = panY + 195;
