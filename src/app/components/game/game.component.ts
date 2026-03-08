@@ -42,7 +42,7 @@ import { GameEngineService } from '../../services/game-engine.service';
           <div class="menu-cards">
             <div class="info-card">
               <h3>🎯 Mission</h3>
-              <p>Eat animals to grow, avoid hunters, reach the victory flag!</p>
+              <p>Eat <strong>25 animals</strong> to win! Avoid hunters and walls.</p>
             </div>
             <div class="info-card">
               <h3>🎮 Controls</h3>
@@ -68,7 +68,7 @@ import { GameEngineService } from '../../services/game-engine.service';
 
           <div class="menu-warnings">
             <div class="warning-item">👨 Hunter spotted = Death!</div>
-            <div class="warning-item">🏁 Reach the flag to WIN!</div>
+            <div class="warning-item">� Eat 25 animals to WIN!</div>
             <div class="warning-item">🌿 Walls are deadly!</div>
           </div>
 
@@ -112,15 +112,15 @@ import { GameEngineService } from '../../services/game-engine.service';
         <div class="win-content">
           <div class="win-trophy">🏆</div>
           <h1 class="win-title">YOU WON!</h1>
-          <p class="win-subtitle">The jungle is conquered!</p>
+          <p class="win-subtitle">25 animals devoured — the jungle bows to you!</p>
           <div class="win-stats">
             <div class="stat-box">
               <div class="stat-value">{{ engine.score }}</div>
               <div class="stat-label">Score</div>
             </div>
             <div class="stat-box">
-              <div class="stat-value">{{ engine.snake.length }}</div>
-              <div class="stat-label">Length</div>
+              <div class="stat-value">{{ engine.animalsEaten }}</div>
+              <div class="stat-label">Eaten</div>
             </div>
             <div class="stat-box">
               <div class="stat-value">{{ engine.highScore }}</div>

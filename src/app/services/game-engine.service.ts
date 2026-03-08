@@ -60,10 +60,9 @@ export class GameEngineService {
   clouds: Cloud[] = [];
   particles: Particle[] = [];
 
-  // Flag (win condition)
-  flagX = 0;
-  flagY = 0;
-  flagWaveTimer = 0;
+  // Flag (win condition) — REMOVED, win is now 25 animals eaten
+  animalsEaten = 0;
+  flagWaveTimer = 0; // kept to avoid breaking references
 
   // Death / Win
   deathPosition: Vector2D = { x: 0, y: 0 };
@@ -168,9 +167,8 @@ export class GameEngineService {
       });
     }
 
-    // Flag position
-    this.flagX = this.worldWidth - 80;
-    this.flagY = this.worldHeight / 2;
+    // Reset animals eaten counter
+    this.animalsEaten = 0;
 
     this.spawnAnimals();
     this.spawnHunters();
@@ -512,15 +510,6 @@ export class GameEngineService {
 
     // Check animal collision
     this.checkAnimalEat();
-
-    // Check win (reach flag)
-    const headPx = head.x * this.config.cellSize;
-    const headPy = head.y * this.config.cellSize;
-    const dFlagX = headPx - this.flagX;
-    const dFlagY = headPy - this.flagY;
-    if (Math.sqrt(dFlagX * dFlagX + dFlagY * dFlagY) < 40) {
-      this.triggerWin();
-    }
   }
 
   checkAnimalEat() {
@@ -536,10 +525,15 @@ export class GameEngineService {
         a.alive = false;
         this.score += a.points;
         this.growthPending += a.growth;
+        this.animalsEaten++;
         this.spawnEatParticles(a.x, a.y, a.type);
         this.spawnScoreParticles(a.x, a.y, a.points);
-        // Respawn a new animal
+        // Respawn a new animal after delay
         setTimeout(() => this.respawnAnimal(a), 8000);
+        // Win condition — 25 animals eaten
+        if (this.animalsEaten >= 25) {
+          this.triggerWin();
+        }
       }
     });
   }
@@ -665,23 +659,26 @@ export class GameEngineService {
   private _overlayTimer: any = null;
 
   triggerWin() {
+    if (this.gameState === 'won') return; // guard double-trigger
     this.snakeAlive = false;
     this.winTimer = 0;
     this.gameState = 'won';
     this.saveHighScore();
-    // Spawn lots of celebration particles around flag
-    for (let i = 0; i < 60; i++) {
+    // Spawn celebration particles around snake head
+    const headPx = (this.snake[0]?.x ?? 0) * this.config.cellSize;
+    const headPy = (this.snake[0]?.y ?? 0) * this.config.cellSize;
+    for (let i = 0; i < 80; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 1 + Math.random() * 4;
+      const speed = 1 + Math.random() * 5;
       this.particles.push({
-        x: this.flagX + (Math.random() - 0.5) * 40,
-        y: this.flagY + (Math.random() - 0.5) * 40,
+        x: headPx + (Math.random() - 0.5) * 60,
+        y: headPy + (Math.random() - 0.5) * 60,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - 3,
         life: 1500 + Math.random() * 1000,
         maxLife: 2500,
         color: ['#fc0', '#f44', '#4f4', '#44f', '#f4f', '#4ff'][Math.floor(Math.random() * 6)],
-        size: 5 + Math.random() * 10,
+        size: 5 + Math.random() * 12,
         type: 'star'
       });
     }
@@ -727,7 +724,6 @@ export class GameEngineService {
     this.renderHunterSightCones();
     this.renderHunters();
     this.renderSnake();
-    this.renderFlag();
     this.renderParticles();
 
     ctx.restore();
@@ -2251,78 +2247,6 @@ export class GameEngineService {
     ctx.globalAlpha = 1;
   }
 
-  renderFlag() {
-    const ctx = this.ctx;
-    const fx = this.flagX;
-    const fy = this.flagY;
-    const t = this.flagWaveTimer;
-
-    // Pole
-    ctx.strokeStyle = '#888';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(fx, fy + 50);
-    ctx.lineTo(fx, fy - 60);
-    ctx.stroke();
-
-    // Flag cloth with wave animation
-    const flagW = 50;
-    const flagH = 30;
-    ctx.save();
-    ctx.translate(fx, fy - 50);
-
-    // Draw wavy flag
-    ctx.fillStyle = '#22cc22';
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    for (let px = 0; px <= flagW; px += 4) {
-      const wave = Math.sin(t * 3 + px * 0.2) * 5;
-      ctx.lineTo(px, wave);
-    }
-    for (let px = flagW; px >= 0; px -= 4) {
-      const wave = Math.sin(t * 3 + px * 0.2) * 5 + flagH;
-      ctx.lineTo(px, wave);
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    // Flag star
-    ctx.fillStyle = '#fff';
-    ctx.font = '16px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('⭐', flagW / 2, flagH / 2 + Math.sin(t * 3 + flagW * 0.1) * 3);
-
-    // "WIN" text on flag
-    ctx.fillStyle = '#006600';
-    ctx.font = 'bold 8px Arial';
-    ctx.fillText('WIN!', flagW / 2, flagH / 2 + 12 + Math.sin(t * 3 + flagW * 0.1) * 3);
-
-    ctx.restore();
-
-    // Pole base
-    ctx.fillStyle = '#666';
-    ctx.beginPath();
-    ctx.ellipse(fx, fy + 52, 10, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Glow around flag
-    const glow = ctx.createRadialGradient(fx, fy, 5, fx, fy, 80);
-    glow.addColorStop(0, 'rgba(100,255,100,0.15)');
-    glow.addColorStop(1, 'rgba(100,255,100,0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(fx, fy, 80, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Pulsing rings
-    const pulseR = 30 + Math.sin(this.animTime * 0.003) * 10;
-    ctx.strokeStyle = `rgba(100,255,100,${0.4 - Math.sin(this.animTime * 0.003) * 0.2})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(fx, fy, pulseR, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
   renderParticles() {
     const ctx = this.ctx;
     this.particles.forEach(p => {
@@ -2422,15 +2346,15 @@ export class GameEngineService {
     ctx.textAlign = 'center';
     ctx.fillText(`🐍 Length: ${this.snake.length}`, W / 2, row1);
 
-    // Animals remaining
+    // Animals eaten progress toward win
     const alive = this.animals.filter(a => a.alive).length;
     ctx.fillStyle = '#f84';
     ctx.fillText(`🐾 Prey: ${alive}`, W / 2, row2);
 
-    // Direction indicator
-    ctx.fillStyle = '#adf';
+    // Win progress — animals eaten / 25
+    ctx.fillStyle = '#ffd700';
     ctx.textAlign = 'right';
-    ctx.fillText(`➡ Flag: ${Math.round(Math.abs(this.flagX - (this.snake[0]?.x ?? 0) * this.config.cellSize))}px`, W - pad, row1);
+    ctx.fillText(`🎯 Eaten: ${this.animalsEaten}/25`, W - pad, row1);
 
     // FPS (debug)
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
