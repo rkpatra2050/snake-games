@@ -187,7 +187,7 @@ import { GameEngineService } from '../../services/game-engine.service';
             </div>
           </div>
           <div class="win-buttons">
-            <button class="play-again-btn" (click)="startGame()">🔄 Play Again</button>
+            <button class="play-again-btn" (click)="engine.level === 2 ? startLevel2() : startGame()">🔄 Play Again</button>
             <button class="menu-btn" (click)="goToMenu()">🏠 Menu</button>
           </div>
         </div>
@@ -301,7 +301,7 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     this.resizeCanvas();
     this.showSwipeHint = true;
     setTimeout(() => { this.showSwipeHint = false; this.cdr.markForCheck(); }, 3000);
-    this.engine.onPlayAgain = () => { this.zone.run(() => this.startGame()); };
+    this.engine.onPlayAgain = () => { this.zone.run(() => this.startLevel2()); };
     this.engine.onGoMenu    = () => { this.zone.run(() => this.goToMenu()); };
     this.engine.onWin       = () => { this.zone.run(() => this.handleWin()); };
     this.engine.startLevel2();
