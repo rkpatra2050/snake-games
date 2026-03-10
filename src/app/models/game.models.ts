@@ -31,13 +31,16 @@ export interface Eagle {
   y: number;
   angle: number;    // flight direction (radians)
   speed: number;
-  altitude: number; // how high above ground (for shadow)
+  altitude: number; // visual altitude above ground
   patrolCx: number; // circle centre
   patrolCy: number;
   patrolRadius: number;
   patrolAngle: number; // current angle in circle
-  sightRange: number;  // ground distance that kills snake
+  sightRange: number;  // detection radius — eagle starts chasing
+  killRange: number;   // lethal contact radius (much smaller)
+  state: 'patrol' | 'chase' | 'return';
   wingPhase: number;   // flapping animation
+  chaseSpeed: number;  // fast speed when chasing
 }
 
 export interface Hunter {

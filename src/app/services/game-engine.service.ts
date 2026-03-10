@@ -102,9 +102,13 @@ export class GameEngineService {
     this.buildWorld();
   }
 
+  // Level unlock
+  level2Unlocked = false;
+
   loadHighScore() {
     const saved = localStorage.getItem('jungleSnakeHighScore');
     if (saved) this.highScore = parseInt(saved);
+    this.level2Unlocked = localStorage.getItem('jungleSnakeLevel2Unlocked') === '1';
   }
 
   saveHighScore() {
@@ -112,6 +116,11 @@ export class GameEngineService {
       this.highScore = this.score;
       localStorage.setItem('jungleSnakeHighScore', this.highScore.toString());
     }
+  }
+
+  unlockLevel2() {
+    this.level2Unlocked = true;
+    localStorage.setItem('jungleSnakeLevel2Unlocked', '1');
   }
 
   buildWorld() {
@@ -372,21 +381,24 @@ export class GameEngineService {
     for (let i = 0; i < 4; i++) {
       const cx = 200 + Math.random() * (this.worldWidth - 400);
       const cy = 150 + Math.random() * (this.worldHeight - 300);
-      const radius = 120 + Math.random() * 100;
+      const radius = 140 + Math.random() * 80;
       const startAngle = Math.random() * Math.PI * 2;
       this.eagles.push({
         id: i,
         x: cx + Math.cos(startAngle) * radius,
         y: cy + Math.sin(startAngle) * radius,
         angle: startAngle,
-        speed: 0.6 + Math.random() * 0.4,
-        altitude: 80 + Math.random() * 60,
+        speed: 0.5 + Math.random() * 0.3,
+        altitude: 90 + Math.random() * 50,
         patrolCx: cx,
         patrolCy: cy,
         patrolRadius: radius,
         patrolAngle: startAngle,
-        sightRange: 70 + Math.random() * 30,
-        wingPhase: Math.random() * Math.PI * 2
+        sightRange: 160 + Math.random() * 40,  // large detect range
+        killRange: 28,                           // tiny kill radius — snake must be very close
+        state: 'patrol',
+        wingPhase: Math.random() * Math.PI * 2,
+        chaseSpeed: 2.2 + Math.random() * 0.6
       });
     }
   }
@@ -472,26 +484,70 @@ export class GameEngineService {
     const headPy = head.y * this.config.cellSize;
 
     this.eagles.forEach(e => {
-      // Circle patrol
-      const angSpeed = (e.speed * 0.012) * (dt / 16);
-      e.patrolAngle += angSpeed;
-      e.x = e.patrolCx + Math.cos(e.patrolAngle) * e.patrolRadius;
-      e.y = e.patrolCy + Math.sin(e.patrolAngle) * e.patrolRadius;
-      e.angle = e.patrolAngle + Math.PI / 2;
-      e.wingPhase += dt * 0.008;
+      const dx = headPx - e.x;
+      const dy = headPy - e.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      e.wingPhase += dt * 0.009;
+
+      if (e.state === 'patrol') {
+        // Normal circle patrol
+        const angSpeed = (e.speed * 0.011) * (dt / 16);
+        e.patrolAngle += angSpeed;
+        e.x = e.patrolCx + Math.cos(e.patrolAngle) * e.patrolRadius;
+        e.y = e.patrolCy + Math.sin(e.patrolAngle) * e.patrolRadius;
+        e.angle = e.patrolAngle + Math.PI / 2;
+        e.altitude = 90 + Math.sin(e.patrolAngle * 2) * 20;
+
+        // Detect snake → start chase
+        if (dist < e.sightRange) {
+          e.state = 'chase';
+        }
+
+      } else if (e.state === 'chase') {
+        // Dive toward snake position fast
+        const spd = e.chaseSpeed * (dt / 16);
+        const len = Math.max(dist, 1);
+        e.x += (dx / len) * spd * 8;
+        e.y += (dy / len) * spd * 8;
+        e.angle = Math.atan2(dy, dx);
+        // Descend (lower altitude) to look like diving
+        e.altitude = Math.max(10, e.altitude - dt * 0.15);
+
+        // If snake escaped far enough → return to patrol
+        if (dist > e.sightRange * 1.5) {
+          e.state = 'return';
+        }
+
+        // Kill if eagle body touches snake (very small radius)
+        if (dist < e.killRange && this.snakeAlive) {
+          this.killSnakeByEagle();
+        }
+
+      } else if (e.state === 'return') {
+        // Fly back to patrol centre
+        const pcx = e.patrolCx + Math.cos(e.patrolAngle) * e.patrolRadius;
+        const pcy = e.patrolCy + Math.sin(e.patrolAngle) * e.patrolRadius;
+        const rdx = pcx - e.x;
+        const rdy = pcy - e.y;
+        const rlen = Math.sqrt(rdx * rdx + rdy * rdy) || 1;
+        const spd = e.chaseSpeed * 5 * (dt / 16);
+        e.x += (rdx / rlen) * spd;
+        e.y += (rdy / rlen) * spd;
+        e.angle = Math.atan2(rdy, rdx);
+        e.altitude = Math.min(90 + Math.sin(e.patrolAngle * 2) * 20, e.altitude + dt * 0.1);
+
+        if (rlen < 20) {
+          e.state = 'patrol';
+        }
+        // If snake comes close again while returning, re-chase
+        if (dist < e.sightRange) {
+          e.state = 'chase';
+        }
+      }
 
       // Clamp to world
       e.x = Math.max(60, Math.min(this.worldWidth - 60, e.x));
       e.y = Math.max(60, Math.min(this.worldHeight - 60, e.y));
-
-      // Eagle shadow on ground → that's where danger zone is
-      // Snake is on the ground; eagle shadow = eagle position
-      const dx = headPx - e.x;
-      const dy = headPy - e.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < e.sightRange && this.snakeAlive) {
-        this.killSnakeByEagle();
-      }
     });
   }
 
@@ -861,6 +917,7 @@ export class GameEngineService {
     this.winTimer = 0;
     this.gameState = this.level === 1 ? 'level-transition' : 'won';
     this.saveHighScore();
+    if (this.level === 1) this.unlockLevel2(); // persist unlock
     // Spawn celebration particles around snake head
     const headPx = (this.snake[0]?.x ?? 0) * this.config.cellSize;
     const headPy = (this.snake[0]?.y ?? 0) * this.config.cellSize;
@@ -1371,23 +1428,36 @@ export class GameEngineService {
   renderEagleShadows() {
     const ctx = this.ctx;
     this.eagles.forEach(e => {
-      // Shadow on ground (slightly offset by altitude)
-      const sx = e.x + e.altitude * 0.3;
-      const sy = e.y + e.altitude * 0.2;
+      const sx = e.x + e.altitude * 0.25;
+      const sy = e.y + e.altitude * 0.18;
+      const shadowScale = e.state === 'chase' ? 0.4 + (e.altitude / 90) * 0.6 : 1;
+
       ctx.save();
-      ctx.globalAlpha = 0.25;
+      ctx.globalAlpha = 0.2 * shadowScale;
       ctx.fillStyle = '#000';
-      // Shadow ellipse
       ctx.beginPath();
-      ctx.ellipse(sx, sy, 22, 10, e.angle, 0, Math.PI * 2);
+      ctx.ellipse(sx, sy, 26 * shadowScale, 10 * shadowScale, e.angle, 0, Math.PI * 2);
       ctx.fill();
-      // Danger range indicator (faint red circle on ground)
-      ctx.globalAlpha = 0.12;
-      ctx.strokeStyle = '#f44';
-      ctx.lineWidth = 2;
+
+      // Detection range ring — bright red while chasing, faint while patrolling
+      ctx.globalAlpha = e.state === 'chase' ? 0.35 : 0.1;
+      ctx.strokeStyle = e.state === 'chase' ? '#ff2200' : '#ff8800';
+      ctx.lineWidth = e.state === 'chase' ? 3 : 1.5;
+      ctx.setLineDash([8, 6]);
       ctx.beginPath();
       ctx.arc(e.x, e.y, e.sightRange, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Kill zone — small solid red dot on ground beneath eagle
+      if (e.state === 'chase') {
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#ff0000';
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.killRange, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.restore();
     });
   }
@@ -1395,94 +1465,170 @@ export class GameEngineService {
   renderEagles() {
     const ctx = this.ctx;
     this.eagles.forEach(e => {
+      const isChasing = e.state === 'chase';
       ctx.save();
       ctx.translate(e.x, e.y - e.altitude);
       ctx.rotate(e.angle);
 
-      // Wing flap animation
-      const flapAmp = 12;
-      const wingAngle = Math.sin(e.wingPhase) * 0.6;
+      const flapAmp = isChasing ? 18 : 12;
+      const flapSpeed = isChasing ? e.wingPhase * 1.6 : e.wingPhase;
+      const wingAngle = Math.sin(flapSpeed) * (isChasing ? 0.9 : 0.55);
+      const scale = isChasing ? 1.4 : 1.0; // eagle looks bigger when diving
+      ctx.scale(scale, scale);
 
-      // Body
-      ctx.fillStyle = '#5c3a1e';
+      // Body — 3D gradient
+      const bodyGrad = ctx.createRadialGradient(-4, -3, 1, 0, 0, 18);
+      bodyGrad.addColorStop(0, '#a06030');
+      bodyGrad.addColorStop(0.5, '#6a3c18');
+      bodyGrad.addColorStop(1, '#3a1808');
+      ctx.fillStyle = bodyGrad;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 16, 7, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 18, 8, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = '#2a1000';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
 
-      // Left wing
+      // Wings — left
       ctx.save();
       ctx.rotate(wingAngle);
-      ctx.fillStyle = '#3a2510';
+      const lwGrad = ctx.createLinearGradient(0, 0, -38, -flapAmp);
+      lwGrad.addColorStop(0, '#5c3010');
+      lwGrad.addColorStop(0.5, '#3a2008');
+      lwGrad.addColorStop(1, '#1a0c02');
+      ctx.fillStyle = lwGrad;
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(-32, -flapAmp + Math.sin(e.wingPhase) * flapAmp);
-      ctx.lineTo(-28, 4);
+      ctx.moveTo(-2, -2);
+      ctx.lineTo(-38, -flapAmp + Math.sin(flapSpeed) * flapAmp);
+      ctx.lineTo(-34, 2);
+      ctx.lineTo(-18, 5);
       ctx.closePath();
       ctx.fill();
-      // Wing stripe
-      ctx.strokeStyle = '#a07040';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-4, 0);
-      ctx.lineTo(-28, -flapAmp * 0.6 + Math.sin(e.wingPhase) * flapAmp * 0.5);
-      ctx.stroke();
+      // Wing feather lines
+      ctx.strokeStyle = 'rgba(180,120,60,0.5)';
+      ctx.lineWidth = 0.7;
+      for (let fi = 0; fi < 4; fi++) {
+        const fx = -8 - fi * 7;
+        ctx.beginPath();
+        ctx.moveTo(fx, 0);
+        ctx.lineTo(fx - 4, -flapAmp * 0.7 + Math.sin(flapSpeed) * flapAmp * 0.5);
+        ctx.stroke();
+      }
       ctx.restore();
 
-      // Right wing
+      // Wings — right
       ctx.save();
       ctx.rotate(-wingAngle);
-      ctx.fillStyle = '#3a2510';
+      const rwGrad = ctx.createLinearGradient(0, 0, 38, -flapAmp);
+      rwGrad.addColorStop(0, '#5c3010');
+      rwGrad.addColorStop(0.5, '#3a2008');
+      rwGrad.addColorStop(1, '#1a0c02');
+      ctx.fillStyle = rwGrad;
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(32, -flapAmp + Math.sin(e.wingPhase) * flapAmp);
-      ctx.lineTo(28, 4);
+      ctx.moveTo(2, -2);
+      ctx.lineTo(38, -flapAmp + Math.sin(flapSpeed) * flapAmp);
+      ctx.lineTo(34, 2);
+      ctx.lineTo(18, 5);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = '#a07040';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(4, 0);
-      ctx.lineTo(28, -flapAmp * 0.6 + Math.sin(e.wingPhase) * flapAmp * 0.5);
-      ctx.stroke();
+      ctx.strokeStyle = 'rgba(180,120,60,0.5)';
+      ctx.lineWidth = 0.7;
+      for (let fi = 0; fi < 4; fi++) {
+        const fx = 8 + fi * 7;
+        ctx.beginPath();
+        ctx.moveTo(fx, 0);
+        ctx.lineTo(fx + 4, -flapAmp * 0.7 + Math.sin(flapSpeed) * flapAmp * 0.5);
+        ctx.stroke();
+      }
       ctx.restore();
 
-      // Head
-      ctx.fillStyle = '#f0d070';  // golden head
+      // Head — golden bald eagle style
+      const headGrad = ctx.createRadialGradient(-16, -4, 1, -15, -3, 9);
+      headGrad.addColorStop(0, '#fffacc');
+      headGrad.addColorStop(0.5, '#e8d870');
+      headGrad.addColorStop(1, '#c0a020');
+      ctx.fillStyle = headGrad;
       ctx.beginPath();
-      ctx.arc(-14, -2, 7, 0, Math.PI * 2);
+      ctx.arc(-15, -3, 8, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = '#806000';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
 
-      // Beak
-      ctx.fillStyle = '#e0a020';
+      // Beak — hooked
+      ctx.fillStyle = '#e8b800';
       ctx.beginPath();
-      ctx.moveTo(-20, -1);
-      ctx.lineTo(-27, 1);
-      ctx.lineTo(-20, 3);
+      ctx.moveTo(-22, -3);
+      ctx.lineTo(-32, 0);
+      ctx.lineTo(-28, 3);
+      ctx.lineTo(-22, 1);
       ctx.closePath();
       ctx.fill();
 
-      // Eye
+      // Eye — fierce red
+      ctx.fillStyle = '#cc0000';
+      ctx.beginPath();
+      ctx.arc(-17, -5, 3, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = '#000';
       ctx.beginPath();
-      ctx.arc(-16, -3, 2, 0, Math.PI * 2);
+      ctx.arc(-17, -5, 1.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#f00';
+      ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(-16, -3, 0.8, 0, Math.PI * 2);
+      ctx.arc(-16, -6, 0.6, 0, Math.PI * 2);
       ctx.fill();
 
-      // Tail
-      ctx.fillStyle = '#5c3a1e';
-      ctx.beginPath();
-      ctx.moveTo(14, -2);
-      ctx.lineTo(24, -6);
-      ctx.lineTo(26, 0);
-      ctx.lineTo(24, 5);
-      ctx.lineTo(14, 2);
-      ctx.closePath();
-      ctx.fill();
+      // Tail fan
+      const tailCols = ['#6a3810', '#4a2808', '#8a5020'];
+      for (let ti = -1; ti <= 1; ti++) {
+        ctx.fillStyle = tailCols[ti + 1];
+        ctx.beginPath();
+        ctx.moveTo(16, ti * 2);
+        ctx.lineTo(28 + Math.abs(ti) * 2, -8 + ti * 5);
+        ctx.lineTo(28 + Math.abs(ti) * 2, 4 + ti * 5);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Talons (only show when diving)
+      if (isChasing) {
+        ctx.fillStyle = '#c8a030';
+        ctx.beginPath();
+        ctx.moveTo(-4, 6);
+        ctx.lineTo(-8, 16);
+        ctx.lineTo(-2, 13);
+        ctx.lineTo(0, 18);
+        ctx.lineTo(4, 13);
+        ctx.lineTo(8, 16);
+        ctx.lineTo(4, 6);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Chase glow effect
+      if (isChasing) {
+        ctx.globalAlpha = 0.2;
+        ctx.fillStyle = '#ff4400';
+        ctx.beginPath();
+        ctx.arc(0, 0, 35, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       ctx.restore();
+
+      // Alert indicator floating above eagle
+      if (e.state === 'chase') {
+        ctx.save();
+        ctx.translate(e.x, e.y - e.altitude - 45 * scale);
+        const pulse = 0.85 + Math.sin(Date.now() * 0.01) * 0.15;
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = '#ff2200';
+        ctx.font = `bold ${Math.round(18 * scale)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText('⚠️', 0, 0);
+        ctx.restore();
+      }
     });
   }
 
@@ -1904,11 +2050,16 @@ export class GameEngineService {
 
       // Draw each animal type as a real pixel-art creature
       switch (a.type) {
-        case 'rabbit':   this.drawRabbit(ctx, t, a.bobOffset); break;
-        case 'frog':     this.drawFrog(ctx, t, a.bobOffset); break;
-        case 'bird':     this.drawBird(ctx, t, a.bobOffset); break;
-        case 'mouse':    this.drawMouse(ctx, t, a.bobOffset); break;
-        case 'butterfly':this.drawButterfly(ctx, t, a.bobOffset); break;
+        case 'rabbit':    this.drawRabbit(ctx, t, a.bobOffset); break;
+        case 'frog':      this.drawFrog(ctx, t, a.bobOffset); break;
+        case 'bird':      this.drawBird(ctx, t, a.bobOffset); break;
+        case 'mouse':     this.drawMouse(ctx, t, a.bobOffset); break;
+        case 'butterfly': this.drawButterfly(ctx, t, a.bobOffset); break;
+        case 'mosquito':  this.drawMosquito(ctx, t, a.bobOffset); break;
+        case 'beetle':    this.drawBeetle(ctx, t, a.bobOffset); break;
+        case 'cockroach': this.drawCockroach(ctx, t, a.bobOffset); break;
+        case 'worm':      this.drawWorm(ctx, t, a.bobOffset); break;
+        case 'cricket':   this.drawCricket(ctx, t, a.bobOffset); break;
       }
 
       // Pulsing attract ring
@@ -2325,6 +2476,629 @@ export class GameEngineService {
     ctx.arc(-9, -25, 1.5, 0, Math.PI * 2);
     ctx.arc( 9, -25, 1.5, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.restore();
+  }
+
+  drawMosquito(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const hover = Math.sin(t * 8 + offset) * 3;
+    const wingBuzz = Math.sin(t * 20 + offset);
+    ctx.save();
+    ctx.translate(0, hover);
+
+    // Wings — large, translucent, iridescent
+    const wingAlpha = 0.55 + Math.abs(wingBuzz) * 0.3;
+    ctx.save();
+    ctx.globalAlpha = wingAlpha;
+    // Left wing
+    const lwGrad = ctx.createLinearGradient(-18, -10, 0, 5);
+    lwGrad.addColorStop(0, 'rgba(160,220,255,0.9)');
+    lwGrad.addColorStop(0.5, 'rgba(200,240,255,0.7)');
+    lwGrad.addColorStop(1, 'rgba(100,180,255,0.4)');
+    ctx.fillStyle = lwGrad;
+    ctx.beginPath();
+    ctx.ellipse(-11, -8, 13, 6, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(100,160,220,0.6)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    // Wing veins left
+    ctx.strokeStyle = 'rgba(80,140,200,0.4)';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(-4, -7); ctx.lineTo(-18, -5);
+    ctx.moveTo(-4, -7); ctx.lineTo(-16, -12);
+    ctx.moveTo(-4, -7); ctx.lineTo(-10, -14);
+    ctx.stroke();
+    // Right wing
+    const rwGrad = ctx.createLinearGradient(0, -10, 18, 5);
+    rwGrad.addColorStop(0, 'rgba(160,220,255,0.9)');
+    rwGrad.addColorStop(0.5, 'rgba(200,240,255,0.7)');
+    rwGrad.addColorStop(1, 'rgba(100,180,255,0.4)');
+    ctx.fillStyle = rwGrad;
+    ctx.beginPath();
+    ctx.ellipse(11, -8, 13, 6, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(100,160,220,0.6)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    // Wing veins right
+    ctx.strokeStyle = 'rgba(80,140,200,0.4)';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(4, -7); ctx.lineTo(18, -5);
+    ctx.moveTo(4, -7); ctx.lineTo(16, -12);
+    ctx.moveTo(4, -7); ctx.lineTo(10, -14);
+    ctx.stroke();
+    ctx.restore();
+
+    // Abdomen — segmented dark body with stripes
+    const abdGrad = ctx.createLinearGradient(-4, 2, 4, 14);
+    abdGrad.addColorStop(0, '#3a5c2a');
+    abdGrad.addColorStop(0.5, '#2a4a1a');
+    abdGrad.addColorStop(1, '#1a3010');
+    ctx.fillStyle = abdGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 9, 3.5, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Abdomen stripes
+    ctx.strokeStyle = '#7aad5a';
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-3, 4 + i * 3.5);
+      ctx.lineTo(3, 4 + i * 3.5);
+      ctx.stroke();
+    }
+
+    // Thorax
+    const thoraxGrad = ctx.createRadialGradient(-1, -2, 0.5, 0, -1, 5);
+    thoraxGrad.addColorStop(0, '#6a8a5a');
+    thoraxGrad.addColorStop(1, '#2a4a20');
+    ctx.fillStyle = thoraxGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 4.5, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = '#2a3a20';
+    ctx.beginPath();
+    ctx.arc(0, -7, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Red compound eyes
+    ctx.fillStyle = '#cc2200';
+    ctx.beginPath();
+    ctx.arc(-2, -8, 2, 0, Math.PI * 2);
+    ctx.arc(2, -8, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ff4422';
+    ctx.beginPath();
+    ctx.arc(-2.5, -8.5, 0.8, 0, Math.PI * 2);
+    ctx.arc(1.5, -8.5, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Proboscis — long thin spike
+    ctx.strokeStyle = '#1a2a10';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -10);
+    ctx.lineTo(0, -20);
+    ctx.stroke();
+    ctx.fillStyle = '#1a2a10';
+    ctx.beginPath();
+    ctx.arc(0, -20, 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Antennae
+    ctx.strokeStyle = '#2a3a20';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-2, -10);
+    ctx.bezierCurveTo(-5, -15, -8, -17, -10, -21);
+    ctx.moveTo(2, -10);
+    ctx.bezierCurveTo(5, -15, 8, -17, 10, -21);
+    ctx.stroke();
+
+    // 6 thin legs
+    ctx.strokeStyle = '#2a3a15';
+    ctx.lineWidth = 0.7;
+    for (let i = -1; i <= 1; i++) {
+      const lx = i * 2.5;
+      const ly = -2 + i * 2;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.bezierCurveTo(lx - 8, ly + 3, lx - 14, ly + 5, lx - 16, ly + 9);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.bezierCurveTo(lx + 8, ly + 3, lx + 14, ly + 5, lx + 16, ly + 9);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  drawBeetle(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const walk = Math.sin(t * 4 + offset) * 2;
+    ctx.save();
+    ctx.translate(0, walk);
+
+    // 6 legs — drawn under body
+    const legPositions = [-5, 0, 5];
+    ctx.strokeStyle = '#1a0a00';
+    ctx.lineWidth = 1;
+    legPositions.forEach((ly, i) => {
+      const swing = Math.sin(t * 4 + offset + i) * 0.3;
+      ctx.save();
+      ctx.rotate(swing);
+      ctx.beginPath();
+      ctx.moveTo(-5, ly);
+      ctx.lineTo(-15, ly + 6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(5, ly);
+      ctx.lineTo(15, ly + 6);
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    // Elytra (wing covers) — glossy dark with iridescent sheen
+    const elGrad = ctx.createRadialGradient(-3, -5, 1, 0, 0, 13);
+    elGrad.addColorStop(0, '#5a3a8a');
+    elGrad.addColorStop(0.3, '#2a1060');
+    elGrad.addColorStop(0.7, '#150830');
+    elGrad.addColorStop(1, '#0a0420');
+    ctx.fillStyle = elGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 10, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3a1a70';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Elytra split line
+    ctx.strokeStyle = '#0a0420';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, -10);
+    ctx.lineTo(0, 16);
+    ctx.stroke();
+
+    // Iridescent highlight
+    const shimGrad = ctx.createLinearGradient(-8, -8, 4, 0);
+    shimGrad.addColorStop(0, 'rgba(140,100,255,0.5)');
+    shimGrad.addColorStop(0.4, 'rgba(80,180,255,0.3)');
+    shimGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shimGrad;
+    ctx.beginPath();
+    ctx.ellipse(-2, -3, 7, 9, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pronotum (thorax plate)
+    const proGrad = ctx.createRadialGradient(-2, -13, 1, 0, -11, 7);
+    proGrad.addColorStop(0, '#6a4aaa');
+    proGrad.addColorStop(1, '#1a0850');
+    ctx.fillStyle = proGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -11, 8, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3a1a70';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Head
+    const headGrad = ctx.createRadialGradient(-1, -19, 0.5, 0, -18, 5);
+    headGrad.addColorStop(0, '#5a3a8a');
+    headGrad.addColorStop(1, '#1a0850');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -18, 5, 4.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3a1a70';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Eyes — compound, bulging orange
+    ctx.fillStyle = '#cc5500';
+    ctx.beginPath();
+    ctx.arc(-4, -19, 2.5, 0, Math.PI * 2);
+    ctx.arc(4, -19, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(-4.5, -19.5, 1, 0, Math.PI * 2);
+    ctx.arc(3.5, -19.5, 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Short antennae with clubs
+    ctx.strokeStyle = '#1a0a00';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-3, -22);
+    ctx.bezierCurveTo(-5, -26, -7, -28, -8, -30);
+    ctx.moveTo(3, -22);
+    ctx.bezierCurveTo(5, -26, 7, -28, 8, -30);
+    ctx.stroke();
+    ctx.fillStyle = '#2a1060';
+    ctx.beginPath();
+    ctx.arc(-8, -30, 2, 0, Math.PI * 2);
+    ctx.arc(8, -30, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mandibles
+    ctx.strokeStyle = '#1a0a00';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-3, -22);
+    ctx.lineTo(-5, -25);
+    ctx.moveTo(3, -22);
+    ctx.lineTo(5, -25);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  drawCockroach(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const scurry = Math.sin(t * 6 + offset) * 2.5;
+    const legSwing = Math.sin(t * 6 + offset);
+    ctx.save();
+    ctx.translate(scurry * 0.3, 0);
+
+    // 6 legs — paired
+    ctx.strokeStyle = '#3a2000';
+    ctx.lineWidth = 1;
+    const legPairs = [[-6, -2], [-6, 5], [-6, 11]];
+    legPairs.forEach(([ly, _unused], i) => {
+      const swing = legSwing * (i % 2 === 0 ? 1 : -1) * 0.4;
+      // Left
+      ctx.save();
+      ctx.translate(-5, ly);
+      ctx.rotate(-0.3 + swing);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-10, 3);
+      ctx.lineTo(-14, 8);
+      ctx.stroke();
+      ctx.restore();
+      // Right
+      ctx.save();
+      ctx.translate(5, ly);
+      ctx.rotate(0.3 - swing);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(10, 3);
+      ctx.lineTo(14, 8);
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    // Abdomen — oval brown segmented
+    const abdGrad = ctx.createRadialGradient(-3, 4, 1, 0, 5, 10);
+    abdGrad.addColorStop(0, '#c87830');
+    abdGrad.addColorStop(0.5, '#9a5010');
+    abdGrad.addColorStop(1, '#5a2800');
+    ctx.fillStyle = abdGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 7, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3a1800';
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+
+    // Abdomen segments
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 0.8;
+    for (let s = 0; s < 5; s++) {
+      ctx.beginPath();
+      ctx.ellipse(0, -1 + s * 3.5, 7 - s * 0.5, 1, 0, 0, Math.PI);
+      ctx.stroke();
+    }
+
+    // Wing covers (shortened)
+    const wingGrad = ctx.createLinearGradient(-6, -4, 6, 8);
+    wingGrad.addColorStop(0, '#b06820');
+    wingGrad.addColorStop(0.5, '#8a4800');
+    wingGrad.addColorStop(1, '#5a2800');
+    ctx.fillStyle = wingGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 6.5, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Wing split
+    ctx.strokeStyle = '#3a1800';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -7);
+    ctx.lineTo(0, 11);
+    ctx.stroke();
+
+    // Pronotum — wide shield
+    const proGrad = ctx.createRadialGradient(-2, -12, 1, 0, -10, 8);
+    proGrad.addColorStop(0, '#d08030');
+    proGrad.addColorStop(1, '#7a3c00');
+    ctx.fillStyle = proGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -9, 9, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3a1800';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    // Pronotum marking
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, -9, 5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head — small triangular
+    ctx.fillStyle = '#8a4400';
+    ctx.beginPath();
+    ctx.ellipse(0, -17, 5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3a1800';
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+
+    // Eyes — beady yellow
+    ctx.fillStyle = '#e0b000';
+    ctx.beginPath();
+    ctx.arc(-3, -18, 1.8, 0, Math.PI * 2);
+    ctx.arc(3, -18, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(-3, -18, 0.8, 0, Math.PI * 2);
+    ctx.arc(3, -18, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Very long antennae — whip-like
+    ctx.strokeStyle = '#2a1000';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-3, -20);
+    ctx.bezierCurveTo(-8, -26, -14, -30, -20, -38);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(3, -20);
+    ctx.bezierCurveTo(8, -26, 14, -30, 20, -38);
+    ctx.stroke();
+
+    // Cerci (tail feelers)
+    ctx.strokeStyle = '#3a1800';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-3, 17);
+    ctx.bezierCurveTo(-4, 21, -6, 23, -9, 26);
+    ctx.moveTo(3, 17);
+    ctx.bezierCurveTo(4, 21, 6, 23, 9, 26);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  drawWorm(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const wiggle = Math.sin(t * 3 + offset) * 0.3;
+    ctx.save();
+
+    const segments = 10;
+    const segLen = 5;
+
+    // Draw segmented worm body
+    for (let i = segments; i >= 0; i--) {
+      const progress = i / segments;
+      const sy = i * segLen - segments * segLen * 0.5;
+      const sx = Math.sin(wiggle + i * 0.6) * (4 + i * 0.5);
+      const segR = 4.5 - progress * 1.5;
+
+      // Segment gradient — pink/rose
+      const segGrad = ctx.createRadialGradient(sx - segR * 0.3, sy - segR * 0.3, 0.5, sx, sy, segR);
+      segGrad.addColorStop(0, i === 0 ? '#ff9090' : '#e06060');
+      segGrad.addColorStop(0.5, i === 0 ? '#e05050' : '#c03040');
+      segGrad.addColorStop(1, '#802030');
+      ctx.fillStyle = segGrad;
+      ctx.beginPath();
+      ctx.arc(sx, sy, segR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Segment divider lines
+      if (i < segments && i > 0) {
+        const prevSy = (i + 1) * segLen - segments * segLen * 0.5;
+        const prevSx = Math.sin(wiggle + (i + 1) * 0.6) * (4 + (i + 1) * 0.5);
+        ctx.strokeStyle = 'rgba(120,20,30,0.5)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(sx - segR, (sy + prevSy) / 2);
+        ctx.lineTo(sx + segR, (sy + prevSy) / 2);
+        ctx.stroke();
+      }
+    }
+
+    // Head segment — slightly larger, brighter
+    const headSx = Math.sin(wiggle) * 4;
+    const headSy = -segments * segLen * 0.5;
+    const headGrad = ctx.createRadialGradient(headSx - 2, headSy - 2, 0.5, headSx, headSy, 6);
+    headGrad.addColorStop(0, '#ffb0a0');
+    headGrad.addColorStop(0.5, '#e06060');
+    headGrad.addColorStop(1, '#a02030');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.arc(headSx, headSy, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#802030';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Tiny eyes
+    ctx.fillStyle = '#1a0010';
+    ctx.beginPath();
+    ctx.arc(headSx - 2, headSy - 1, 1.2, 0, Math.PI * 2);
+    ctx.arc(headSx + 2, headSy - 1, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(headSx - 1.5, headSy - 1.4, 0.5, 0, Math.PI * 2);
+    ctx.arc(headSx + 2.5, headSy - 1.4, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mouth
+    ctx.strokeStyle = '#802030';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(headSx, headSy + 1.5, 2, 0, Math.PI);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  drawCricket(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const hop = Math.abs(Math.sin(t * 3 + offset)) * 3;
+    const legKick = Math.sin(t * 3 + offset);
+    ctx.save();
+    ctx.translate(0, -hop);
+
+    // Hind legs — large, powerful jumpers
+    const hindKick = legKick * 0.6;
+    ctx.strokeStyle = '#2a4a10';
+    ctx.lineWidth = 1.5;
+    // Left hind leg
+    ctx.beginPath();
+    ctx.moveTo(-5, 5);
+    ctx.lineTo(-12, 0 + hindKick * 5);
+    ctx.lineTo(-18, 10 - hindKick * 3);
+    ctx.stroke();
+    // Right hind leg
+    ctx.beginPath();
+    ctx.moveTo(5, 5);
+    ctx.lineTo(12, 0 - hindKick * 5);
+    ctx.lineTo(18, 10 + hindKick * 3);
+    ctx.stroke();
+    // Hind leg upper (femur) — thick
+    const femGrad = ctx.createLinearGradient(-5, 5, -12, 0);
+    femGrad.addColorStop(0, '#5a7a30');
+    femGrad.addColorStop(1, '#3a5a20');
+    ctx.fillStyle = femGrad;
+    ctx.beginPath();
+    ctx.ellipse(-9, 3 + hindKick * 2, 5, 2.5, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = femGrad;
+    ctx.beginPath();
+    ctx.ellipse(9, 3 - hindKick * 2, 5, 2.5, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Front/middle legs
+    ctx.strokeStyle = '#3a5a20';
+    ctx.lineWidth = 0.9;
+    const fswing = legKick * 0.25;
+    [-3, 3].forEach(side => {
+      ctx.beginPath();
+      ctx.moveTo(side, -3);
+      ctx.lineTo(side * 1.5 + side * 4, 3 + fswing * side);
+      ctx.lineTo(side * 1.5 + side * 7, 7);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(side, 2);
+      ctx.lineTo(side * 1.5 + side * 4, 8 - fswing * side);
+      ctx.lineTo(side * 1.5 + side * 7, 12);
+      ctx.stroke();
+    });
+
+    // Abdomen — elongated, striped
+    const abdGrad = ctx.createLinearGradient(-7, 0, 7, 12);
+    abdGrad.addColorStop(0, '#6a8a40');
+    abdGrad.addColorStop(0.5, '#4a6a20');
+    abdGrad.addColorStop(1, '#2a4a10');
+    ctx.fillStyle = abdGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 6, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#2a4010';
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+    // Abdomen stripes
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 0.7;
+    for (let s = 0; s < 5; s++) {
+      ctx.beginPath();
+      ctx.moveTo(-6 + s * 0.3, -1 + s * 3.5);
+      ctx.lineTo(6 - s * 0.3, -1 + s * 3.5);
+      ctx.stroke();
+    }
+
+    // Wings — folded flat on back
+    const wGrad = ctx.createLinearGradient(-5, -5, 5, 8);
+    wGrad.addColorStop(0, 'rgba(180,210,120,0.8)');
+    wGrad.addColorStop(1, 'rgba(80,120,40,0.6)');
+    ctx.fillStyle = wGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 5.5, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(40,80,10,0.6)';
+    ctx.lineWidth = 0.5;
+    // Wing veins
+    for (let v = 0; v < 3; v++) {
+      ctx.beginPath();
+      ctx.moveTo(-3, -3 + v * 4);
+      ctx.lineTo(3, -3 + v * 4);
+      ctx.stroke();
+    }
+
+    // Thorax
+    const thorGrad = ctx.createRadialGradient(-2, -8, 1, 0, -7, 7);
+    thorGrad.addColorStop(0, '#8aaa50');
+    thorGrad.addColorStop(1, '#3a6020');
+    ctx.fillStyle = thorGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -6, 6.5, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#2a4010';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Head
+    const headGrad = ctx.createRadialGradient(-2, -15, 1, 0, -14, 6);
+    headGrad.addColorStop(0, '#9aba60');
+    headGrad.addColorStop(1, '#4a7020');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -14, 5.5, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#2a4010';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Large compound eyes
+    ctx.fillStyle = '#c0d850';
+    ctx.beginPath();
+    ctx.arc(-4, -16, 3, 0, Math.PI * 2);
+    ctx.arc(4, -16, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1a3000';
+    ctx.beginPath();
+    ctx.arc(-4, -16, 1.5, 0, Math.PI * 2);
+    ctx.arc(4, -16, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,200,0.6)';
+    ctx.beginPath();
+    ctx.arc(-5, -17, 0.6, 0, Math.PI * 2);
+    ctx.arc(3, -17, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Long antennae
+    ctx.strokeStyle = '#2a4010';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-2, -19);
+    ctx.bezierCurveTo(-6, -24, -11, -28, -16, -35);
+    ctx.moveTo(2, -19);
+    ctx.bezierCurveTo(6, -24, 11, -28, 16, -35);
+    ctx.stroke();
+
+    // Ovipositor (tail spike) — female cricket look
+    ctx.strokeStyle = '#3a5020';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 16);
+    ctx.lineTo(0, 23);
+    ctx.stroke();
 
     ctx.restore();
   }

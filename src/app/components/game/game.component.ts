@@ -82,6 +82,35 @@ import { GameEngineService } from '../../services/game-engine.service';
             PLAY NOW
             <span class="btn-icon">🐍</span>
           </button>
+
+          <!-- LEVEL SELECT -->
+          <div class="level-select">
+            <div class="level-select-title">🎮 Select Level</div>
+            <div class="level-buttons">
+              <button class="level-btn level-btn-1" (click)="startGame()">
+                <span class="level-icon">🌴</span>
+                <div class="level-btn-info">
+                  <div class="level-btn-name">Level 1</div>
+                  <div class="level-btn-desc">Jungle — Eat 15 animals</div>
+                </div>
+                <span class="level-status unlocked-badge">PLAY</span>
+              </button>
+              <button class="level-btn level-btn-2"
+                [class.locked]="!engine.level2Unlocked"
+                [disabled]="!engine.level2Unlocked"
+                (click)="engine.level2Unlocked && startLevel2()">
+                <span class="level-icon">🏜️</span>
+                <div class="level-btn-info">
+                  <div class="level-btn-name">Level 2</div>
+                  <div class="level-btn-desc" *ngIf="engine.level2Unlocked">Desert — Eat 25 insects</div>
+                  <div class="level-btn-desc locked-desc" *ngIf="!engine.level2Unlocked">Complete Level 1 to Unlock</div>
+                </div>
+                <span class="level-status" [class.unlocked-badge]="engine.level2Unlocked" [class.locked-badge]="!engine.level2Unlocked">
+                  {{ engine.level2Unlocked ? 'PLAY' : '🔒' }}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
