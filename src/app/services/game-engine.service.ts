@@ -1439,23 +1439,101 @@ export class GameEngineService {
       ctx.ellipse(sx, sy, 26 * shadowScale, 10 * shadowScale, e.angle, 0, Math.PI * 2);
       ctx.fill();
 
-      // Detection range ring — bright red while chasing, faint while patrolling
-      ctx.globalAlpha = e.state === 'chase' ? 0.35 : 0.1;
-      ctx.strokeStyle = e.state === 'chase' ? '#ff2200' : '#ff8800';
-      ctx.lineWidth = e.state === 'chase' ? 3 : 1.5;
-      ctx.setLineDash([8, 6]);
-      ctx.beginPath();
-      ctx.arc(e.x, e.y, e.sightRange, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      // Detection range ring — always clearly visible
+      const pulse = 0.5 + Math.sin(this.animTime * 0.004) * 0.3;
 
-      // Kill zone — small solid red dot on ground beneath eagle
-      if (e.state === 'chase') {
-        ctx.globalAlpha = 0.6;
+      if (e.state === 'patrol') {
+        // Filled danger zone — semi-transparent orange
+        ctx.globalAlpha = 0.07 + Math.sin(this.animTime * 0.003) * 0.02;
+        ctx.fillStyle = '#ff6600';
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.sightRange, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Dashed outer ring — clearly orange
+        ctx.globalAlpha = 0.55;
+        ctx.strokeStyle = '#ff9900';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([10, 6]);
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.sightRange, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Inner solid ring
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.sightRange - 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // "DANGER ZONE" label on the ring edge
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#ffaa00';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚠ EAGLE ZONE', e.x, e.y - e.sightRange - 6);
+
+      } else if (e.state === 'chase') {
+        // Filled zone — bright red pulsing
+        ctx.globalAlpha = 0.12 + pulse * 0.08;
         ctx.fillStyle = '#ff0000';
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.sightRange, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Bold red dashed ring — highly visible
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = '#ff2200';
+        ctx.lineWidth = 3.5;
+        ctx.setLineDash([12, 5]);
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.sightRange, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Second pulsing ring slightly inside
+        ctx.globalAlpha = 0.4 + pulse * 0.3;
+        ctx.strokeStyle = '#ff6600';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.sightRange - 10, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // "CHASING!" label
+        ctx.globalAlpha = 0.9 + pulse * 0.1;
+        ctx.fillStyle = '#ff3300';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('🦅 CHASING!', e.x, e.y - e.sightRange - 6);
+      } else {
+        // Return state — faint grey ring so player knows eagle is returning
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = '#aaaaaa';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 8]);
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.sightRange, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Kill zone — red circle always visible beneath eagle
+      if (e.state === 'chase') {
+        ctx.globalAlpha = 0.7 + pulse * 0.2;
+        const killGrad = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.killRange);
+        killGrad.addColorStop(0, 'rgba(255,0,0,0.95)');
+        killGrad.addColorStop(0.6, 'rgba(255,60,0,0.7)');
+        killGrad.addColorStop(1, 'rgba(255,0,0,0.1)');
+        ctx.fillStyle = killGrad;
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.killRange, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 2;
+        ctx.stroke();
       }
 
       ctx.restore();
