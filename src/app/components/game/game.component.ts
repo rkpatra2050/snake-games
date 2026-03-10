@@ -42,7 +42,7 @@ import { GameEngineService } from '../../services/game-engine.service';
           <div class="menu-cards">
             <div class="info-card">
               <h3>🎯 Mission</h3>
-              <p>Eat <strong>25 animals</strong> to win! Avoid hunters and walls.</p>
+              <p>Eat <strong>15 animals</strong> to win Level 1! Then survive the desert eagles in Level 2!</p>
             </div>
             <div class="info-card">
               <h3>🎮 Controls</h3>
@@ -68,7 +68,8 @@ import { GameEngineService } from '../../services/game-engine.service';
 
           <div class="menu-warnings">
             <div class="warning-item">👨 Hunter spotted = Death!</div>
-            <div class="warning-item">� Eat 25 animals to WIN!</div>
+            <div class="warning-item">🎯 Eat 15 animals to WIN Level 1!</div>
+            <div class="warning-item">🦅 Avoid eagle shadows in Level 2!</div>
             <div class="warning-item">🌿 Walls are deadly!</div>
           </div>
 
@@ -85,7 +86,7 @@ import { GameEngineService } from '../../services/game-engine.service';
       </div>
 
       <!-- GAME CANVAS — full screen, swipe anywhere to move -->
-      <div class="canvas-container" [class.hidden]="engine.gameState === 'menu' || engine.gameState === 'won'">
+      <div class="canvas-container" [class.hidden]="engine.gameState === 'menu' || engine.gameState === 'won' || engine.gameState === 'level-transition'">
         <canvas #gameCanvas
           class="game-canvas"
           (click)="onCanvasClick($event)"
@@ -100,6 +101,35 @@ import { GameEngineService } from '../../services/game-engine.service';
         </div>
       </div>
 
+      <!-- LEVEL TRANSITION SCREEN (Level 1 Complete to Level 2) -->
+      <div class="screen level-transition-screen" *ngIf="engine.gameState === 'level-transition'">
+        <div class="level-transition-content">
+          <div class="level-badge">⭐ LEVEL 1 COMPLETE ⭐</div>
+          <h1 class="transition-title">🏜️ Desert Awaits!</h1>
+          <p class="transition-subtitle">You conquered the jungle!<br>Now survive the scorching desert...</p>
+          <div class="transition-warning">
+            <div class="warning-eagle">🦅 Eagles patrol the sky!</div>
+            <div class="warning-eagle">�� Eat 25 insects to win!</div>
+            <div class="warning-eagle">⚠️ Enter an eagle shadow = Death!</div>
+          </div>
+          <div class="win-stats">
+            <div class="stat-box">
+              <div class="stat-value">{{ engine.score }}</div>
+              <div class="stat-label">Score So Far</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value">15</div>
+              <div class="stat-label">Animals Eaten</div>
+            </div>
+          </div>
+          <button class="start-btn desert-btn" (click)="startLevel2()">
+            <span class="btn-icon">🏜️</span>
+            ENTER THE DESERT
+            <span class="btn-icon">🦅</span>
+          </button>
+        </div>
+      </div>
+
       <!-- WIN SCREEN -->
       <div class="screen win-screen" *ngIf="engine.gameState === 'won'">
         <div class="confetti-container">
@@ -110,9 +140,9 @@ import { GameEngineService } from '../../services/game-engine.service';
             [style.animation-duration]="c.duration + 's'"></div>
         </div>
         <div class="win-content">
-          <div class="win-trophy">🏆</div>
-          <h1 class="win-title">YOU WON!</h1>
-          <p class="win-subtitle">25 animals devoured — the jungle bows to you!</p>
+          <div class="win-trophy">{{ engine.level === 2 ? '🏆' : '🏆' }}</div>
+          <h1 class="win-title">{{ engine.level === 2 ? 'DESERT CONQUERED!' : 'YOU WON!' }}</h1>
+          <p class="win-subtitle">{{ engine.level === 2 ? '25 insects devoured — the desert bows to you!' : '15 animals devoured — the jungle bows to you!' }}</p>
           <div class="win-stats">
             <div class="stat-box">
               <div class="stat-value">{{ engine.score }}</div>
@@ -120,7 +150,7 @@ import { GameEngineService } from '../../services/game-engine.service';
             </div>
             <div class="stat-box">
               <div class="stat-value">{{ engine.animalsEaten }}</div>
-              <div class="stat-label">Eaten</div>
+              <div class="stat-label">{{ engine.level === 2 ? 'Insects' : 'Eaten' }}</div>
             </div>
             <div class="stat-box">
               <div class="stat-value">{{ engine.highScore }}</div>
@@ -149,7 +179,7 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
   // Touch tracking
   private touchStartX = 0;
   private touchStartY = 0;
-  private swipeActive = false;     // true once a direction has been sent this touch
+  private swipeActive = false;
 
   titleTrees = Array.from({ length: 12 }, (_, i) => ({
     size: 30 + Math.random() * 30,
@@ -190,7 +220,6 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     const vh = window.innerHeight;
     this.isMobile = 'ontouchstart' in window || vw <= 900;
 
-    // Fill the FULL viewport — game engine scales all coordinates accordingly
     this.canvasWidth  = vw;
     this.canvasHeight = vh;
 
@@ -200,7 +229,6 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
       canvas.height = this.canvasHeight;
       this.engine.canvas = canvas;
       this.engine.ctx    = canvas.getContext('2d')!;
-      // If overlay is currently showing (loop stopped), repaint it immediately
       if (this.engine.overlayVisible) {
         this.engine.render();
       }
@@ -216,10 +244,10 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
   startGame() {
     this.resizeCanvas();
     this.showSwipeHint = true;
-    // Hide swipe hint after 3 s
     setTimeout(() => { this.showSwipeHint = false; this.cdr.markForCheck(); }, 3000);
     this.engine.onPlayAgain = () => { this.zone.run(() => this.startGame()); };
     this.engine.onGoMenu    = () => { this.zone.run(() => this.goToMenu()); };
+    this.engine.onWin       = () => { this.zone.run(() => this.handleWin()); };
     this.engine.startGame();
     this.cdr.detectChanges();
     setTimeout(() => {
@@ -230,7 +258,33 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     }, 30);
   }
 
-  // ── MOUSE CLICK — desktop overlay buttons ────────────────────────
+  handleWin() {
+    if (this.engine.level === 1) {
+      this.engine.gameState = 'level-transition';
+      this.cdr.detectChanges();
+    } else {
+      this.engine.gameState = 'won';
+      this.cdr.detectChanges();
+    }
+  }
+
+  startLevel2() {
+    this.resizeCanvas();
+    this.showSwipeHint = true;
+    setTimeout(() => { this.showSwipeHint = false; this.cdr.markForCheck(); }, 3000);
+    this.engine.onPlayAgain = () => { this.zone.run(() => this.startGame()); };
+    this.engine.onGoMenu    = () => { this.zone.run(() => this.goToMenu()); };
+    this.engine.onWin       = () => { this.zone.run(() => this.handleWin()); };
+    this.engine.startLevel2();
+    this.cdr.detectChanges();
+    setTimeout(() => {
+      if (this.canvasRef?.nativeElement) {
+        this.engine.canvas = this.canvasRef.nativeElement;
+        this.engine.ctx    = this.canvasRef.nativeElement.getContext('2d')!;
+      }
+    }, 30);
+  }
+
   onCanvasClick(event: MouseEvent) {
     const canvas = event.target as HTMLCanvasElement;
     const rect   = canvas.getBoundingClientRect();
@@ -242,7 +296,6 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  // ── TOUCH: record start position ─────────────────────────────────
   onTouchStart(event: TouchEvent) {
     event.preventDefault();
     const t = event.touches[0];
@@ -251,10 +304,9 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     this.swipeActive  = false;
   }
 
-  // ── TOUCH: fire direction as soon as finger moves 20px ───────────
   onTouchMove(event: TouchEvent) {
     event.preventDefault();
-    if (this.swipeActive) return;      // one direction per touch gesture
+    if (this.swipeActive) return;
 
     const t     = event.touches[0];
     const dx    = t.clientX - this.touchStartX;
@@ -262,7 +314,7 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
 
-    if (absDx < 20 && absDy < 20) return;   // wait for clearer intent
+    if (absDx < 20 && absDy < 20) return;
 
     this.swipeActive = true;
     if (absDx > absDy) {
@@ -273,7 +325,6 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  // ── TOUCH END: handle tap → overlay button ────────────────────────
   onTouchEnd(event: TouchEvent) {
     event.preventDefault();
     if (event.changedTouches.length === 0) return;
@@ -293,14 +344,12 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     const ex = (t.clientX - rect.left) * scaleX;
     const ey = (t.clientY - rect.top)  * scaleY;
 
-    // If overlay is visible, ALWAYS try to hit-test buttons (tap or swipe-end)
     if (this.engine.overlayVisible) {
       this.engine.handleCanvasClick(ex, ey);
       this.cdr.detectChanges();
       return;
     }
 
-    // Pure tap (no movement) during gameplay → hit-test any canvas elements
     if (!this.swipeActive && absDx < 20 && absDy < 20) {
       this.engine.handleCanvasClick(ex, ey);
       this.cdr.detectChanges();
@@ -325,4 +374,3 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 }
-

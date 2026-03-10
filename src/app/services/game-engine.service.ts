@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import {
-  Animal, Hunter, Tree, Particle, Grass, Bush, Cloud,
+  Animal, Eagle, Hunter, Tree, Particle, Grass, Bush, Cloud,
   SnakeSegment, Direction, GameState, Vector2D, GameConfig
 } from '../models/game.models';
 
@@ -54,6 +54,7 @@ export class GameEngineService {
   // World entities
   animals: Animal[] = [];
   hunters: Hunter[] = [];
+  eagles: Eagle[] = [];
   trees: Tree[] = [];
   grasses: Grass[] = [];
   bushes: Bush[] = [];
@@ -76,6 +77,7 @@ export class GameEngineService {
   overlayVisible = false;
   onPlayAgain: (() => void) | null = null;
   onGoMenu:    (() => void) | null = null;
+  onWin:       (() => void) | null = null;
 
   // Input
   keysDown: Set<string> = new Set();
@@ -251,6 +253,7 @@ export class GameEngineService {
     // Cancel any pending "show overlay" timer from a previous death
     if (this._overlayTimer) { clearTimeout(this._overlayTimer); this._overlayTimer = null; }
     this.score = 0;
+    this.level = 1;
     this.gameState = 'playing';
     this.deathTimer = 0;
     this.winTimer = 0;
@@ -258,8 +261,134 @@ export class GameEngineService {
     this.particles = [];
     this.overlayVisible = false;
     this.snakeAlive = true;
+    this.eagles = [];
     this.buildWorld();
     this.startLoop();
+  }
+
+  startLevel2() {
+    if (this._overlayTimer) { clearTimeout(this._overlayTimer); this._overlayTimer = null; }
+    this.level = 2;
+    this.animalsEaten = 0;
+    this.gameState = 'playing';
+    this.deathTimer = 0;
+    this.winTimer = 0;
+    this.killedBy = null;
+    this.particles = [];
+    this.overlayVisible = false;
+    this.snakeAlive = true;
+    this.buildDesertWorld();
+    this.startLoop();
+  }
+
+  buildDesertWorld() {
+    // Sparse dry-grass patches (fewer, yellowed)
+    this.grasses = [];
+    for (let i = 0; i < 120; i++) {
+      const hue = 35 + Math.random() * 20; // straw / ochre
+      this.grasses.push({
+        x: Math.random() * this.worldWidth,
+        y: Math.random() * this.worldHeight,
+        height: 6 + Math.random() * 10,
+        swayOffset: Math.random() * Math.PI * 2,
+        color: `hsl(${hue}, 60%, 38%)`
+      });
+    }
+
+    // Very few small scraggly trees (cacti-like, sparse)
+    this.trees = [];
+    for (let i = 0; i < 10; i++) {
+      this.trees.push({
+        x: 80 + Math.random() * (this.worldWidth - 160),
+        y: 60 + Math.random() * (this.worldHeight - 120),
+        scale: 0.4 + Math.random() * 0.5,
+        type: 3, // special desert/cactus type
+        swayOffset: Math.random() * Math.PI * 2
+      });
+    }
+
+    this.bushes = [];
+    for (let i = 0; i < 8; i++) {
+      this.bushes.push({
+        x: Math.random() * this.worldWidth,
+        y: 40 + Math.random() * (this.worldHeight - 80),
+        scale: 0.3 + Math.random() * 0.4
+      });
+    }
+
+    // Clouds — desert haze, fewer
+    this.clouds = [];
+    for (let i = 0; i < 4; i++) {
+      this.clouds.push({
+        x: Math.random() * this.worldWidth,
+        y: 20 + Math.random() * 60,
+        speed: 0.15 + Math.random() * 0.2,
+        scale: 0.6 + Math.random() * 0.8,
+        opacity: 0.15 + Math.random() * 0.2
+      });
+    }
+
+    this.animalsEaten = 0;
+    this.spawnInsects();
+    this.spawnEagles();
+    this.hunters = []; // no hunters in level 2
+    this.resetSnake();
+  }
+
+  spawnInsects() {
+    const types: Array<{ type: Animal['type']; emoji: string; points: number; growth: number; speed: number }> = [
+      { type: 'mosquito',   emoji: '🦟', points: 5,  growth: 1, speed: 1.5 },
+      { type: 'beetle',     emoji: '🪲', points: 8,  growth: 1, speed: 0.7 },
+      { type: 'cockroach',  emoji: '🪳', points: 6,  growth: 1, speed: 1.2 },
+      { type: 'worm',       emoji: '🪱', points: 4,  growth: 2, speed: 0.5 },
+      { type: 'cricket',    emoji: '🦗', points: 7,  growth: 1, speed: 1.0 }
+    ];
+    this.animals = [];
+    const count = 18; // more insects on field
+    for (let i = 0; i < count; i++) {
+      const t = types[Math.floor(Math.random() * types.length)];
+      const angle = Math.random() * Math.PI * 2;
+      this.animals.push({
+        id: i,
+        x: 100 + Math.random() * (this.worldWidth - 250),
+        y: 60 + Math.random() * (this.worldHeight - 120),
+        type: t.type,
+        emoji: t.emoji,
+        points: t.points,
+        growth: t.growth,
+        animFrame: 0,
+        bobOffset: Math.random() * Math.PI * 2,
+        speed: t.speed,
+        vx: Math.cos(angle) * t.speed,
+        vy: Math.sin(angle) * t.speed * 0.5,
+        alive: true,
+        eatAnimation: 0
+      });
+    }
+  }
+
+  spawnEagles() {
+    this.eagles = [];
+    for (let i = 0; i < 4; i++) {
+      const cx = 200 + Math.random() * (this.worldWidth - 400);
+      const cy = 150 + Math.random() * (this.worldHeight - 300);
+      const radius = 120 + Math.random() * 100;
+      const startAngle = Math.random() * Math.PI * 2;
+      this.eagles.push({
+        id: i,
+        x: cx + Math.cos(startAngle) * radius,
+        y: cy + Math.sin(startAngle) * radius,
+        angle: startAngle,
+        speed: 0.6 + Math.random() * 0.4,
+        altitude: 80 + Math.random() * 60,
+        patrolCx: cx,
+        patrolCy: cy,
+        patrolRadius: radius,
+        patrolAngle: startAngle,
+        sightRange: 70 + Math.random() * 30,
+        wingPhase: Math.random() * Math.PI * 2
+      });
+    }
   }
 
   startLoop() {
@@ -326,10 +455,64 @@ export class GameEngineService {
     this.updateClouds(dt);
     this.updateParticles(dt);
     this.updateAnimals(dt);
-    this.updateHunters(dt);
+    if (this.level === 1) {
+      this.updateHunters(dt);
+    } else {
+      this.updateEagles(dt);
+    }
     this.updateSnake(dt);
     this.updateCamera();
     this.flagWaveTimer += dt * 0.003;
+  }
+
+  updateEagles(dt: number) {
+    if (!this.snakeAlive) return;
+    const head = this.snake[0];
+    const headPx = head.x * this.config.cellSize;
+    const headPy = head.y * this.config.cellSize;
+
+    this.eagles.forEach(e => {
+      // Circle patrol
+      const angSpeed = (e.speed * 0.012) * (dt / 16);
+      e.patrolAngle += angSpeed;
+      e.x = e.patrolCx + Math.cos(e.patrolAngle) * e.patrolRadius;
+      e.y = e.patrolCy + Math.sin(e.patrolAngle) * e.patrolRadius;
+      e.angle = e.patrolAngle + Math.PI / 2;
+      e.wingPhase += dt * 0.008;
+
+      // Clamp to world
+      e.x = Math.max(60, Math.min(this.worldWidth - 60, e.x));
+      e.y = Math.max(60, Math.min(this.worldHeight - 60, e.y));
+
+      // Eagle shadow on ground → that's where danger zone is
+      // Snake is on the ground; eagle shadow = eagle position
+      const dx = headPx - e.x;
+      const dy = headPy - e.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < e.sightRange && this.snakeAlive) {
+        this.killSnakeByEagle();
+      }
+    });
+  }
+
+  killSnakeByEagle() {
+    if (!this.snakeAlive) return;
+    this.snakeAlive = false;
+    this.gameState = 'lost';
+    this.killedBy = 'hunter'; // reuse same field
+    const head = this.snake[0];
+    this.deathPosition = { x: head.x * this.config.cellSize, y: head.y * this.config.cellSize };
+    this.spawnDeathParticles(this.deathPosition.x, this.deathPosition.y);
+    this.deathTimer = 0;
+    this.saveHighScore();
+    if (this._overlayTimer) clearTimeout(this._overlayTimer);
+    this.overlayVisible = false;
+    this._overlayTimer = setTimeout(() => {
+      this._overlayTimer = null;
+      this.overlayVisible = true;
+      this.stopLoop();
+      this.render();
+    }, 500);
   }
 
   updateClouds(dt: number) {
@@ -521,7 +704,7 @@ export class GameEngineService {
       if (!a.alive) return;
       const dx = headPx - a.x;
       const dy = headPy - a.y;
-      if (Math.sqrt(dx * dx + dy * dy) < 25) {
+      if (Math.sqrt(dx * dx + dy * dy) < this.config.cellSize * 1.4) {
         a.alive = false;
         this.score += a.points;
         this.growthPending += a.growth;
@@ -530,8 +713,9 @@ export class GameEngineService {
         this.spawnScoreParticles(a.x, a.y, a.points);
         // Respawn a new animal after delay
         setTimeout(() => this.respawnAnimal(a), 8000);
-        // Win condition — 25 animals eaten
-        if (this.animalsEaten >= 25) {
+        // Win condition — level 1: 15 animals, level 2: 25 insects
+        const winThreshold = this.level === 1 ? 15 : 25;
+        if (this.animalsEaten >= winThreshold) {
           this.triggerWin();
         }
       }
@@ -540,13 +724,21 @@ export class GameEngineService {
 
   respawnAnimal(a: Animal) {
     if (this.gameState !== 'playing') return;
-    const types: Array<{ type: Animal['type']; emoji: string; points: number; growth: number; speed: number }> = [
+    const jungleTypes: Array<{ type: Animal['type']; emoji: string; points: number; growth: number; speed: number }> = [
       { type: 'rabbit', emoji: '🐰', points: 10, growth: 2, speed: 1.2 },
       { type: 'frog', emoji: '🐸', points: 15, growth: 3, speed: 0.8 },
       { type: 'bird', emoji: '🐦', points: 20, growth: 1, speed: 1.8 },
       { type: 'mouse', emoji: '🐭', points: 12, growth: 2, speed: 1.0 },
       { type: 'butterfly', emoji: '🦋', points: 25, growth: 1, speed: 1.5 }
     ];
+    const insectTypes: Array<{ type: Animal['type']; emoji: string; points: number; growth: number; speed: number }> = [
+      { type: 'mosquito',  emoji: '🦟', points: 5,  growth: 1, speed: 1.5 },
+      { type: 'beetle',    emoji: '🪲', points: 8,  growth: 1, speed: 0.7 },
+      { type: 'cockroach', emoji: '🪳', points: 6,  growth: 1, speed: 1.2 },
+      { type: 'worm',      emoji: '🪱', points: 4,  growth: 2, speed: 0.5 },
+      { type: 'cricket',   emoji: '🦗', points: 7,  growth: 1, speed: 1.0 }
+    ];
+    const types = this.level === 2 ? insectTypes : jungleTypes;
     const t = types[Math.floor(Math.random() * types.length)];
     const angle = Math.random() * Math.PI * 2;
     a.type = t.type;
@@ -567,7 +759,12 @@ export class GameEngineService {
       frog: ['#4f8', '#2d6', '#9f6'],
       bird: ['#f84', '#fc0', '#f44'],
       mouse: ['#aaa', '#888', '#ccc'],
-      butterfly: ['#f4f', '#c4f', '#84f']
+      butterfly: ['#f4f', '#c4f', '#84f'],
+      mosquito: ['#8d4', '#6b3', '#4a2'],
+      beetle: ['#46a', '#35c', '#57d'],
+      cockroach: ['#a84', '#864', '#642'],
+      worm: ['#f96', '#e74', '#c62'],
+      cricket: ['#8a6', '#6a4', '#4a2']
     };
     const cols = colors[type];
     for (let i = 0; i < 20; i++) {
@@ -659,10 +856,10 @@ export class GameEngineService {
   private _overlayTimer: any = null;
 
   triggerWin() {
-    if (this.gameState === 'won') return; // guard double-trigger
+    if (this.gameState === 'won' || this.gameState === 'level-transition') return; // guard double-trigger
     this.snakeAlive = false;
     this.winTimer = 0;
-    this.gameState = 'won';
+    this.gameState = this.level === 1 ? 'level-transition' : 'won';
     this.saveHighScore();
     // Spawn celebration particles around snake head
     const headPx = (this.snake[0]?.x ?? 0) * this.config.cellSize;
@@ -682,6 +879,11 @@ export class GameEngineService {
         type: 'star'
       });
     }
+    // Let particles play for 600ms, then stop loop and notify Angular
+    setTimeout(() => {
+      this.stopLoop();
+      if (this.onWin) this.onWin();
+    }, 600);
   }
 
   updateCamera() {
@@ -704,27 +906,48 @@ export class GameEngineService {
 
     ctx.clearRect(0, 0, W, H);
 
-    // Sky/Ground gradient background — warm amber-brown jungle tones
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
-    skyGrad.addColorStop(0, '#3d2810');
-    skyGrad.addColorStop(0.3, '#4a3218');
-    skyGrad.addColorStop(1, '#1e1208');
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, W, H);
+    if (this.level === 2) {
+      // Desert sky gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+      skyGrad.addColorStop(0, '#b5651d');
+      skyGrad.addColorStop(0.4, '#cd853f');
+      skyGrad.addColorStop(1, '#8b4513');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      // Jungle sky gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+      skyGrad.addColorStop(0, '#3d2810');
+      skyGrad.addColorStop(0.3, '#4a3218');
+      skyGrad.addColorStop(1, '#1e1208');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, W, H);
+    }
 
     ctx.save();
     ctx.translate(-this.cameraX, -this.cameraY);
 
-    this.renderWorldBackground();
+    if (this.level === 2) {
+      this.renderDesertBackground();
+    } else {
+      this.renderWorldBackground();
+    }
     this.renderClouds();
     this.renderGrass();
     this.renderBushes();
     this.renderTrees();
     this.renderAnimals();
-    this.renderHunterSightCones();
-    this.renderHunters();
+    if (this.level === 1) {
+      this.renderHunterSightCones();
+      this.renderHunters();
+    } else {
+      this.renderEagleShadows();
+    }
     this.renderSnake();
     this.renderParticles();
+    if (this.level === 2) {
+      this.renderEagles();
+    }
 
     ctx.restore();
 
@@ -1076,6 +1299,191 @@ export class GameEngineService {
     rightGrad.addColorStop(1, 'rgba(5,20,2,0.95)');
     ctx.fillStyle = rightGrad;
     ctx.fillRect(W - 25, 0, 25, H);
+  }
+
+  renderDesertBackground() {
+    const ctx = this.ctx;
+    const W = this.worldWidth;
+    const H = this.worldHeight;
+
+    // Sandy desert gradient
+    const sandGrad = ctx.createLinearGradient(0, 0, 0, H);
+    sandGrad.addColorStop(0, '#c8a05a');
+    sandGrad.addColorStop(0.2, '#b8903a');
+    sandGrad.addColorStop(0.5, '#a07828');
+    sandGrad.addColorStop(0.75, '#8b6520');
+    sandGrad.addColorStop(1, '#6b4c14');
+    ctx.fillStyle = sandGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Sand dune ripples
+    ctx.strokeStyle = 'rgba(180,140,70,0.3)';
+    ctx.lineWidth = 2;
+    for (let gy = 40; gy < H; gy += 30) {
+      ctx.beginPath();
+      for (let gx = 0; gx < W; gx += 8) {
+        const wave = Math.sin((gx + gy * 3) * 0.03) * 6;
+        if (gx === 0) ctx.moveTo(gx, gy + wave);
+        else ctx.lineTo(gx, gy + wave);
+      }
+      ctx.stroke();
+    }
+
+    // Sand texture specks
+    for (let i = 0; i < 600; i++) {
+      const sx = (i * 37 + 11) % W;
+      const sy = (i * 53 + 7)  % H;
+      const a  = 0.05 + (i % 5) * 0.02;
+      ctx.fillStyle = i % 2 === 0
+        ? `rgba(255,220,150,${a})`
+        : `rgba(100,70,20,${a})`;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, 2 + (i % 3), 1, (i % 4) * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Rock formations scattered around
+    const rocks = [
+      [180, 120, 40, 25], [650, 200, 55, 30], [1100, 350, 45, 28],
+      [400, 500, 60, 35], [900, 120, 38, 22], [1400, 280, 50, 30],
+      [250, 700, 65, 38], [750, 650, 42, 26]
+    ];
+    rocks.forEach(([rx, ry, rw, rh]) => {
+      ctx.fillStyle = '#7a5c32';
+      ctx.beginPath();
+      ctx.ellipse(rx, ry, rw, rh, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      // highlight
+      ctx.fillStyle = 'rgba(200,160,90,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(rx - rw * 0.2, ry - rh * 0.3, rw * 0.5, rh * 0.35, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Desert border vignette
+    const vignette = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.3, W/2, H/2, Math.max(W,H)*0.7);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(80,40,0,0.5)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  renderEagleShadows() {
+    const ctx = this.ctx;
+    this.eagles.forEach(e => {
+      // Shadow on ground (slightly offset by altitude)
+      const sx = e.x + e.altitude * 0.3;
+      const sy = e.y + e.altitude * 0.2;
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#000';
+      // Shadow ellipse
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, 22, 10, e.angle, 0, Math.PI * 2);
+      ctx.fill();
+      // Danger range indicator (faint red circle on ground)
+      ctx.globalAlpha = 0.12;
+      ctx.strokeStyle = '#f44';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.sightRange, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+
+  renderEagles() {
+    const ctx = this.ctx;
+    this.eagles.forEach(e => {
+      ctx.save();
+      ctx.translate(e.x, e.y - e.altitude);
+      ctx.rotate(e.angle);
+
+      // Wing flap animation
+      const flapAmp = 12;
+      const wingAngle = Math.sin(e.wingPhase) * 0.6;
+
+      // Body
+      ctx.fillStyle = '#5c3a1e';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 16, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Left wing
+      ctx.save();
+      ctx.rotate(wingAngle);
+      ctx.fillStyle = '#3a2510';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-32, -flapAmp + Math.sin(e.wingPhase) * flapAmp);
+      ctx.lineTo(-28, 4);
+      ctx.closePath();
+      ctx.fill();
+      // Wing stripe
+      ctx.strokeStyle = '#a07040';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-4, 0);
+      ctx.lineTo(-28, -flapAmp * 0.6 + Math.sin(e.wingPhase) * flapAmp * 0.5);
+      ctx.stroke();
+      ctx.restore();
+
+      // Right wing
+      ctx.save();
+      ctx.rotate(-wingAngle);
+      ctx.fillStyle = '#3a2510';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(32, -flapAmp + Math.sin(e.wingPhase) * flapAmp);
+      ctx.lineTo(28, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#a07040';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(4, 0);
+      ctx.lineTo(28, -flapAmp * 0.6 + Math.sin(e.wingPhase) * flapAmp * 0.5);
+      ctx.stroke();
+      ctx.restore();
+
+      // Head
+      ctx.fillStyle = '#f0d070';  // golden head
+      ctx.beginPath();
+      ctx.arc(-14, -2, 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Beak
+      ctx.fillStyle = '#e0a020';
+      ctx.beginPath();
+      ctx.moveTo(-20, -1);
+      ctx.lineTo(-27, 1);
+      ctx.lineTo(-20, 3);
+      ctx.closePath();
+      ctx.fill();
+
+      // Eye
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(-16, -3, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f00';
+      ctx.beginPath();
+      ctx.arc(-16, -3, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tail
+      ctx.fillStyle = '#5c3a1e';
+      ctx.beginPath();
+      ctx.moveTo(14, -2);
+      ctx.lineTo(24, -6);
+      ctx.lineTo(26, 0);
+      ctx.lineTo(24, 5);
+      ctx.lineTo(14, 2);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    });
   }
 
   renderClouds() {
@@ -2351,12 +2759,16 @@ export class GameEngineService {
     ctx.fillStyle = '#f84';
     ctx.fillText(`🐾 Prey: ${alive}`, W / 2, row2);
 
-    // Win progress — animals eaten / 25
+    // Win progress — animals eaten / threshold
+    const winThreshold = this.level === 1 ? 15 : 25;
+    const hudLabel = this.level === 1 ? '🎯 Eaten' : '🦟 Insects';
     ctx.fillStyle = '#ffd700';
     ctx.textAlign = 'right';
-    ctx.fillText(`🎯 Eaten: ${this.animalsEaten}/25`, W - pad, row1);
+    ctx.fillText(`${hudLabel}: ${this.animalsEaten}/${winThreshold}`, W - pad, row1);
 
-    // FPS (debug)
+    // Level indicator
+    ctx.fillStyle = this.level === 2 ? '#ffa040' : '#8f8';
+    ctx.fillText(`LVL ${this.level}`, W - pad, row2);
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
     ctx.font = `${smallFontSize}px monospace`;
     ctx.fillText(`FPS: ${this.fps}`, W - pad, row2);

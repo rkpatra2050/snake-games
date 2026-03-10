@@ -904,6 +904,91 @@ $text-light: #e8f5e9;
   }
 }
 
+
+// ===========================
+// LEVEL TRANSITION SCREEN
+// ===========================
+.level-transition-screen {
+  background: radial-gradient(ellipse at center, #4a2800 0%, #1a0800 60%, #000 100%);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.level-transition-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 40px 24px;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.level-badge {
+  background: linear-gradient(135deg, #c8860a, #f0c040, #c8860a);
+  color: #2a1000;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 3px;
+  padding: 8px 28px;
+  border-radius: 30px;
+  text-transform: uppercase;
+  box-shadow: 0 0 20px rgba(240, 180, 0, 0.6);
+}
+
+.transition-title {
+  font-size: clamp(2rem, 6vw, 3.6rem);
+  font-weight: 900;
+  color: #f5c060;
+  text-shadow: 0 0 30px rgba(200, 120, 0, 0.8), 2px 2px 0 #5a2800;
+  margin: 0;
+  letter-spacing: 2px;
+}
+
+.transition-subtitle {
+  font-size: clamp(1rem, 2.5vw, 1.3rem);
+  color: #e0b070;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.transition-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(200, 80, 0, 0.15);
+  border: 1px solid rgba(240, 140, 0, 0.35);
+  border-radius: 12px;
+  padding: 16px 24px;
+  width: 100%;
+}
+
+.warning-eagle {
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  color: #ffb060;
+  font-weight: 600;
+  text-align: center;
+}
+
+.desert-btn {
+  background: linear-gradient(135deg, #b5651d, #cd853f, #8b4513) !important;
+  border-color: #f0a040 !important;
+  box-shadow: 0 0 30px rgba(200, 120, 0, 0.5) !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #cd853f, #e0a050, #a06020) !important;
+    transform: scale(1.04);
+  }
+}
+
 // ===========================
 // LANDSCAPE MOBILE
 // ===========================

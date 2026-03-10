@@ -12,7 +12,7 @@ export interface Animal {
   id: number;
   x: number;
   y: number;
-  type: 'rabbit' | 'frog' | 'bird' | 'mouse' | 'butterfly';
+  type: 'rabbit' | 'frog' | 'bird' | 'mouse' | 'butterfly' | 'mosquito' | 'beetle' | 'cockroach' | 'worm' | 'cricket';
   emoji: string;
   points: number;
   growth: number;
@@ -23,6 +23,21 @@ export interface Animal {
   vy: number;
   alive: boolean;
   eatAnimation: number;
+}
+
+export interface Eagle {
+  id: number;
+  x: number;        // current position (world px)
+  y: number;
+  angle: number;    // flight direction (radians)
+  speed: number;
+  altitude: number; // how high above ground (for shadow)
+  patrolCx: number; // circle centre
+  patrolCy: number;
+  patrolRadius: number;
+  patrolAngle: number; // current angle in circle
+  sightRange: number;  // ground distance that kills snake
+  wingPhase: number;   // flapping animation
 }
 
 export interface Hunter {
@@ -85,7 +100,7 @@ export interface Cloud {
   opacity: number;
 }
 
-export type GameState = 'menu' | 'playing' | 'paused' | 'won' | 'lost';
+export type GameState = 'menu' | 'playing' | 'paused' | 'won' | 'lost' | 'level-transition';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
 export interface GameConfig {
