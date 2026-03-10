@@ -138,6 +138,33 @@ import { GameEngineService } from '../../services/game-engine.service';
           (touchend)="onTouchEnd($event)">
         </canvas>
 
+        <!-- In-game HUD buttons — Pause & Exit -->
+        <div class="hud-buttons" *ngIf="engine.gameState === 'playing' || engine.gameState === 'paused'">
+          <button class="hud-btn pause-btn" (click)="togglePause()" [title]="engine.gameState === 'paused' ? 'Resume' : 'Pause'">
+            {{ engine.gameState === 'paused' ? '▶' : '⏸' }}
+          </button>
+          <button class="hud-btn exit-btn" (click)="goToMenu()" title="Exit to Menu">
+            🏠
+          </button>
+        </div>
+
+        <!-- Pause overlay — shown over canvas -->
+        <div class="pause-overlay" *ngIf="engine.gameState === 'paused'">
+          <div class="pause-card">
+            <div class="pause-icon">⏸</div>
+            <h2 class="pause-title">PAUSED</h2>
+            <div class="pause-buttons">
+              <button class="pause-resume-btn" (click)="togglePause()">
+                ▶ Resume
+              </button>
+              <button class="pause-menu-btn" (click)="goToMenu()">
+                🏠 Main Menu
+              </button>
+            </div>
+            <p class="pause-hint">Press P or ESC to resume</p>
+          </div>
+        </div>
+
         <!-- Swipe hint — fades out after a few seconds -->
         <div class="swipe-hint" *ngIf="showSwipeHint && isMobile">
           <span>👆 Swipe anywhere to move</span>
@@ -177,6 +204,7 @@ import { GameEngineService } from '../../services/game-engine.service';
             {{ engine.level === 1 ? 'ENTER THE DESERT' : 'ENTER THE ARCTIC' }}
             <span class="btn-icon">{{ engine.level === 1 ? '🦅' : '🐻‍❄️' }}</span>
           </button>
+          <button class="transition-exit-btn" (click)="goToMenu()">🏠 Back to Menu</button>
         </div>
       </div>
 
@@ -316,6 +344,11 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
       this.engine.gameState = 'won';
       this.cdr.detectChanges();
     }
+  }
+
+  togglePause() {
+    this.engine.handleKey('p');
+    this.cdr.detectChanges();
   }
 
   startLevel2() {
