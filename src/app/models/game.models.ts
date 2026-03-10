@@ -12,7 +12,7 @@ export interface Animal {
   id: number;
   x: number;
   y: number;
-  type: 'rabbit' | 'frog' | 'bird' | 'mouse' | 'butterfly' | 'mosquito' | 'beetle' | 'cockroach' | 'worm' | 'cricket';
+  type: 'rabbit' | 'frog' | 'bird' | 'mouse' | 'butterfly' | 'mosquito' | 'beetle' | 'cockroach' | 'worm' | 'cricket' | 'fish' | 'seal' | 'penguin' | 'arcticfox' | 'snowowl';
   emoji: string;
   points: number;
   growth: number;
@@ -101,6 +101,24 @@ export interface Cloud {
   speed: number;
   scale: number;
   opacity: number;
+}
+
+export interface PolarBear {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  direction: 'left' | 'right';
+  state: 'patrol' | 'alert' | 'chase';
+  sightRange: number;
+  patrolPath: Vector2D[];
+  patrolIndex: number;
+  alertTimer: number;
+  animFrame: number;
+  stepTimer: number;
+  flashTimer: number;
+  roarTimer: number;
 }
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'won' | 'lost' | 'level-transition';

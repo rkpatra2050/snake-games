@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import {
-  Animal, Eagle, Hunter, Tree, Particle, Grass, Bush, Cloud,
+  Animal, Eagle, Hunter, PolarBear, Tree, Particle, Grass, Bush, Cloud,
   SnakeSegment, Direction, GameState, Vector2D, GameConfig
 } from '../models/game.models';
 
@@ -55,11 +55,14 @@ export class GameEngineService {
   animals: Animal[] = [];
   hunters: Hunter[] = [];
   eagles: Eagle[] = [];
+  polarBears: PolarBear[] = [];
   trees: Tree[] = [];
   grasses: Grass[] = [];
   bushes: Bush[] = [];
   clouds: Cloud[] = [];
   particles: Particle[] = [];
+  snowflakes: { x: number; y: number; r: number; speed: number; drift: number; phase: number }[] = [];
+  icecrystals: { x: number; y: number; angle: number; size: number }[] = [];
 
   // Flag (win condition) — REMOVED, win is now 25 animals eaten
   animalsEaten = 0;
@@ -104,11 +107,13 @@ export class GameEngineService {
 
   // Level unlock
   level2Unlocked = false;
+  level3Unlocked = false;
 
   loadHighScore() {
     const saved = localStorage.getItem('jungleSnakeHighScore');
     if (saved) this.highScore = parseInt(saved);
     this.level2Unlocked = localStorage.getItem('jungleSnakeLevel2Unlocked') === '1';
+    this.level3Unlocked = localStorage.getItem('jungleSnakeLevel3Unlocked') === '1';
   }
 
   saveHighScore() {
@@ -121,6 +126,11 @@ export class GameEngineService {
   unlockLevel2() {
     this.level2Unlocked = true;
     localStorage.setItem('jungleSnakeLevel2Unlocked', '1');
+  }
+
+  unlockLevel3() {
+    this.level3Unlocked = true;
+    localStorage.setItem('jungleSnakeLevel3Unlocked', '1');
   }
 
   buildWorld() {
@@ -290,6 +300,22 @@ export class GameEngineService {
     this.startLoop();
   }
 
+  startLevel3() {
+    if (this._overlayTimer) { clearTimeout(this._overlayTimer); this._overlayTimer = null; }
+    this.level = 3;
+    this.animalsEaten = 0;
+    this.gameState = 'playing';
+    this.deathTimer = 0;
+    this.winTimer = 0;
+    this.killedBy = null;
+    this.particles = [];
+    this.overlayVisible = false;
+    this.snakeAlive = true;
+    this.polarBears = [];
+    this.buildArcticWorld();
+    this.startLoop();
+  }
+
   buildDesertWorld() {
     // Sparse dry-grass patches (fewer, yellowed)
     this.grasses = [];
@@ -342,6 +368,147 @@ export class GameEngineService {
     this.spawnEagles();
     this.hunters = []; // no hunters in level 2
     this.resetSnake();
+  }
+
+  buildArcticWorld() {
+    // Sparse icy grass (white/blue tufts)
+    this.grasses = [];
+    for (let i = 0; i < 180; i++) {
+      const hue = 200 + Math.random() * 30;
+      this.grasses.push({
+        x: Math.random() * this.worldWidth,
+        y: Math.random() * this.worldHeight,
+        height: 5 + Math.random() * 9,
+        swayOffset: Math.random() * Math.PI * 2,
+        color: `hsl(${hue}, 40%, ${70 + Math.random() * 20}%)`
+      });
+    }
+
+    // Ice rocks / boulders as "trees"
+    this.trees = [];
+    for (let i = 0; i < 20; i++) {
+      this.trees.push({
+        x: 80 + Math.random() * (this.worldWidth - 160),
+        y: 60 + Math.random() * (this.worldHeight - 120),
+        scale: 0.4 + Math.random() * 0.9,
+        type: 4, // arctic ice rock type
+        swayOffset: Math.random() * Math.PI * 2
+      });
+    }
+
+    // Snow drifts as "bushes"
+    this.bushes = [];
+    for (let i = 0; i < 20; i++) {
+      this.bushes.push({
+        x: Math.random() * this.worldWidth,
+        y: 40 + Math.random() * (this.worldHeight - 80),
+        scale: 0.4 + Math.random() * 0.7
+      });
+    }
+
+    // Heavy blizzard clouds
+    this.clouds = [];
+    for (let i = 0; i < 14; i++) {
+      this.clouds.push({
+        x: Math.random() * this.worldWidth,
+        y: 10 + Math.random() * 100,
+        speed: 0.5 + Math.random() * 0.6,
+        scale: 1.2 + Math.random() * 1.6,
+        opacity: 0.4 + Math.random() * 0.4
+      });
+    }
+
+    // Snowflakes (world-space, lots of them)
+    this.snowflakes = [];
+    for (let i = 0; i < 300; i++) {
+      this.snowflakes.push({
+        x: Math.random() * this.worldWidth,
+        y: Math.random() * this.worldHeight,
+        r: 1.5 + Math.random() * 3,
+        speed: 0.5 + Math.random() * 1.5,
+        drift: (Math.random() - 0.5) * 0.5,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+
+    // Ice crystals scattered on ground
+    this.icecrystals = [];
+    for (let i = 0; i < 60; i++) {
+      this.icecrystals.push({
+        x: Math.random() * this.worldWidth,
+        y: Math.random() * this.worldHeight,
+        angle: Math.random() * Math.PI,
+        size: 8 + Math.random() * 18
+      });
+    }
+
+    this.animalsEaten = 0;
+    this.spawnArcticAnimals();
+    this.spawnPolarBears();
+    this.hunters = [];
+    this.eagles = [];
+    this.resetSnake();
+  }
+
+  spawnArcticAnimals() {
+    const types: Array<{ type: Animal['type']; emoji: string; points: number; growth: number; speed: number }> = [
+      { type: 'fish',      emoji: '🐟', points: 8,  growth: 2, speed: 0.9 },
+      { type: 'seal',      emoji: '🦭', points: 12, growth: 2, speed: 0.6 },
+      { type: 'penguin',   emoji: '🐧', points: 10, growth: 2, speed: 0.8 },
+      { type: 'arcticfox', emoji: '🦊', points: 15, growth: 1, speed: 1.4 },
+      { type: 'snowowl',   emoji: '🦉', points: 18, growth: 1, speed: 1.6 }
+    ];
+    this.animals = [];
+    for (let i = 0; i < 20; i++) {
+      const t = types[Math.floor(Math.random() * types.length)];
+      const angle = Math.random() * Math.PI * 2;
+      this.animals.push({
+        id: i,
+        x: 100 + Math.random() * (this.worldWidth - 250),
+        y: 60 + Math.random() * (this.worldHeight - 120),
+        type: t.type,
+        emoji: t.emoji,
+        points: t.points,
+        growth: t.growth,
+        animFrame: 0,
+        bobOffset: Math.random() * Math.PI * 2,
+        speed: t.speed,
+        vx: Math.cos(angle) * t.speed,
+        vy: Math.sin(angle) * t.speed * 0.5,
+        alive: true,
+        eatAnimation: 0
+      });
+    }
+  }
+
+  spawnPolarBears() {
+    this.polarBears = [];
+    const pathCount = 3;
+    for (let i = 0; i < pathCount; i++) {
+      const pts: Vector2D[] = [];
+      const numPts = 3 + Math.floor(Math.random() * 3);
+      for (let p = 0; p < numPts; p++) {
+        pts.push({
+          x: 150 + Math.random() * (this.worldWidth - 300),
+          y: 100 + Math.random() * (this.worldHeight - 200)
+        });
+      }
+      this.polarBears.push({
+        id: i,
+        x: pts[0].x, y: pts[0].y,
+        vx: 0, vy: 0,
+        direction: 'right',
+        state: 'patrol',
+        sightRange: 160 + Math.random() * 60,
+        patrolPath: pts,
+        patrolIndex: 0,
+        alertTimer: 0,
+        animFrame: 0,
+        stepTimer: 0,
+        flashTimer: 0,
+        roarTimer: 0
+      });
+    }
   }
 
   spawnInsects() {
@@ -469,8 +636,11 @@ export class GameEngineService {
     this.updateAnimals(dt);
     if (this.level === 1) {
       this.updateHunters(dt);
-    } else {
+    } else if (this.level === 2) {
       this.updateEagles(dt);
+    } else if (this.level === 3) {
+      this.updatePolarBears(dt);
+      this.updateSnowflakes(dt);
     }
     this.updateSnake(dt);
     this.updateCamera();
@@ -769,8 +939,8 @@ export class GameEngineService {
         this.spawnScoreParticles(a.x, a.y, a.points);
         // Respawn a new animal after delay
         setTimeout(() => this.respawnAnimal(a), 8000);
-        // Win condition — level 1: 15 animals, level 2: 25 insects
-        const winThreshold = this.level === 1 ? 15 : 25;
+        // Win condition — level 1: 15, level 2: 25, level 3: 30
+        const winThreshold = this.level === 1 ? 15 : this.level === 2 ? 25 : 30;
         if (this.animalsEaten >= winThreshold) {
           this.triggerWin();
         }
@@ -794,7 +964,14 @@ export class GameEngineService {
       { type: 'worm',      emoji: '🪱', points: 4,  growth: 2, speed: 0.5 },
       { type: 'cricket',   emoji: '🦗', points: 7,  growth: 1, speed: 1.0 }
     ];
-    const types = this.level === 2 ? insectTypes : jungleTypes;
+    const arcticTypes: Array<{ type: Animal['type']; emoji: string; points: number; growth: number; speed: number }> = [
+      { type: 'fish',      emoji: '🐟', points: 8,  growth: 2, speed: 0.9 },
+      { type: 'seal',      emoji: '🦭', points: 12, growth: 2, speed: 0.6 },
+      { type: 'penguin',   emoji: '🐧', points: 10, growth: 2, speed: 0.8 },
+      { type: 'arcticfox', emoji: '🦊', points: 15, growth: 1, speed: 1.4 },
+      { type: 'snowowl',   emoji: '🦉', points: 18, growth: 1, speed: 1.6 }
+    ];
+    const types = this.level === 3 ? arcticTypes : this.level === 2 ? insectTypes : jungleTypes;
     const t = types[Math.floor(Math.random() * types.length)];
     const angle = Math.random() * Math.PI * 2;
     a.type = t.type;
@@ -820,7 +997,12 @@ export class GameEngineService {
       beetle: ['#46a', '#35c', '#57d'],
       cockroach: ['#a84', '#864', '#642'],
       worm: ['#f96', '#e74', '#c62'],
-      cricket: ['#8a6', '#6a4', '#4a2']
+      cricket: ['#8a6', '#6a4', '#4a2'],
+      fish:      ['#4af', '#08f', '#0cf'],
+      seal:      ['#888', '#aaa', '#ccc'],
+      penguin:   ['#222', '#fff', '#446'],
+      arcticfox: ['#fff', '#eee', '#f80'],
+      snowowl:   ['#fff', '#ddf', '#aac']
     };
     const cols = colors[type];
     for (let i = 0; i < 20; i++) {
@@ -915,12 +1097,17 @@ export class GameEngineService {
     if (this.gameState === 'won' || this.gameState === 'level-transition') return; // guard double-trigger
     this.snakeAlive = false;
     this.winTimer = 0;
-    this.gameState = this.level === 1 ? 'level-transition' : 'won';
+    // Levels 1 and 2 transition to next; level 3 is final win
+    this.gameState = (this.level === 1 || this.level === 2) ? 'level-transition' : 'won';
     this.saveHighScore();
-    if (this.level === 1) this.unlockLevel2(); // persist unlock
+    if (this.level === 1) this.unlockLevel2();
+    if (this.level === 2) this.unlockLevel3();
     // Spawn celebration particles around snake head
     const headPx = (this.snake[0]?.x ?? 0) * this.config.cellSize;
     const headPy = (this.snake[0]?.y ?? 0) * this.config.cellSize;
+    const celebColors = this.level === 3
+      ? ['#fff', '#adf', '#8cf', '#6af', '#ddf', '#fff']   // icy sparkle
+      : ['#fc0', '#f44', '#4f4', '#44f', '#f4f', '#4ff'];
     for (let i = 0; i < 80; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 1 + Math.random() * 5;
@@ -931,7 +1118,7 @@ export class GameEngineService {
         vy: Math.sin(angle) * speed - 3,
         life: 1500 + Math.random() * 1000,
         maxLife: 2500,
-        color: ['#fc0', '#f44', '#4f4', '#44f', '#f4f', '#4ff'][Math.floor(Math.random() * 6)],
+        color: celebColors[Math.floor(Math.random() * celebColors.length)],
         size: 5 + Math.random() * 12,
         type: 'star'
       });
@@ -971,6 +1158,14 @@ export class GameEngineService {
       skyGrad.addColorStop(1, '#8b4513');
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, W, H);
+    } else if (this.level === 3) {
+      // Arctic sky — cold blue-grey
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+      skyGrad.addColorStop(0, '#1a2a4a');
+      skyGrad.addColorStop(0.4, '#2a4a6a');
+      skyGrad.addColorStop(1, '#3a5a7a');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, W, H);
     } else {
       // Jungle sky gradient
       const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
@@ -986,6 +1181,8 @@ export class GameEngineService {
 
     if (this.level === 2) {
       this.renderDesertBackground();
+    } else if (this.level === 3) {
+      this.renderArcticBackground();
     } else {
       this.renderWorldBackground();
     }
@@ -993,12 +1190,19 @@ export class GameEngineService {
     this.renderGrass();
     this.renderBushes();
     this.renderTrees();
+    if (this.level === 3) {
+      this.renderSnowflakes();
+      this.renderIceCrystals();
+    }
     this.renderAnimals();
     if (this.level === 1) {
       this.renderHunterSightCones();
       this.renderHunters();
-    } else {
+    } else if (this.level === 2) {
       this.renderEagleShadows();
+    } else if (this.level === 3) {
+      this.renderPolarBearSightCones();
+      this.renderPolarBears();
     }
     this.renderSnake();
     this.renderParticles();
@@ -1423,6 +1627,906 @@ export class GameEngineService {
     vignette.addColorStop(1, 'rgba(80,40,0,0.5)');
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, W, H);
+  }
+
+  // ===== ARCTIC WORLD =====
+
+  renderArcticBackground() {
+    const ctx = this.ctx;
+    const W = this.worldWidth;
+    const H = this.worldHeight;
+
+    // Icy ground — white/light-blue gradient
+    const iceGrad = ctx.createLinearGradient(0, 0, 0, H);
+    iceGrad.addColorStop(0, '#d0e8f8');
+    iceGrad.addColorStop(0.2, '#b8d4ee');
+    iceGrad.addColorStop(0.5, '#a0c4e0');
+    iceGrad.addColorStop(0.8, '#88b0d0');
+    iceGrad.addColorStop(1, '#6898b8');
+    ctx.fillStyle = iceGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Ice surface cracks / fissures
+    ctx.strokeStyle = 'rgba(100,160,220,0.35)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 40; i++) {
+      const fx = (i * 137 + 13) % W;
+      const fy = (i * 89 + 31) % H;
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(fx + (Math.random() - 0.5) * 80, fy + (Math.random() - 0.5) * 50);
+      ctx.lineTo(fx + (Math.random() - 0.5) * 60, fy + (Math.random() - 0.5) * 70);
+      ctx.stroke();
+    }
+
+    // Frozen lake patches — circular translucent ice
+    for (let i = 0; i < 8; i++) {
+      const lx = 120 + (i * 227) % (W - 240);
+      const ly = 100 + (i * 183) % (H - 200);
+      const lr = 60 + (i * 37) % 80;
+      const lakeGrad = ctx.createRadialGradient(lx, ly, lr * 0.2, lx, ly, lr);
+      lakeGrad.addColorStop(0, 'rgba(160,220,255,0.5)');
+      lakeGrad.addColorStop(0.6, 'rgba(100,180,230,0.3)');
+      lakeGrad.addColorStop(1, 'rgba(60,140,200,0.05)');
+      ctx.fillStyle = lakeGrad;
+      ctx.beginPath();
+      ctx.ellipse(lx, ly, lr, lr * 0.55, (i * 0.4) % Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(120,180,240,0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Snow drift mounds along edges
+    ctx.fillStyle = 'rgba(240,248,255,0.6)';
+    for (let i = 0; i < 25; i++) {
+      const dx = (i * 113) % W;
+      const dy = (i % 2 === 0) ? (i * 37) % 80 : H - 40 - (i * 37) % 80;
+      ctx.beginPath();
+      ctx.ellipse(dx, dy, 60 + (i % 5) * 20, 20 + (i % 4) * 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Northern lights aurora streaks
+    const t = this.animTime * 0.0008;
+    for (let band = 0; band < 4; band++) {
+      const baseY = 40 + band * 30;
+      const alpha = 0.06 + Math.sin(t + band * 1.2) * 0.04;
+      const hue = 140 + band * 30 + Math.sin(t * 0.7 + band) * 20;
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = `hsl(${hue}, 80%, 70%)`;
+      ctx.lineWidth = 18;
+      ctx.beginPath();
+      for (let x = 0; x < W; x += 10) {
+        const y = baseY + Math.sin(x * 0.006 + t + band) * 25;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Border vignette — icy blue
+    const vignette = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.3, W/2, H/2, Math.max(W,H)*0.7);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(0,40,80,0.5)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  updateSnowflakes(dt: number) {
+    this.snowflakes.forEach(s => {
+      s.y += s.speed * (dt / 16);
+      s.x += s.drift + Math.sin(this.animTime * 0.002 + s.phase) * 0.4;
+      if (s.y > this.worldHeight + 10) {
+        s.y = -10;
+        s.x = Math.random() * this.worldWidth;
+      }
+      if (s.x < 0) s.x += this.worldWidth;
+      if (s.x > this.worldWidth) s.x -= this.worldWidth;
+    });
+  }
+
+  renderSnowflakes() {
+    const ctx = this.ctx;
+    ctx.save();
+    this.snowflakes.forEach(s => {
+      ctx.globalAlpha = 0.55 + Math.sin(s.phase + this.animTime * 0.002) * 0.2;
+      ctx.fillStyle = '#e8f4ff';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+      // Six-pointed sparkle for larger flakes
+      if (s.r > 2.5) {
+        ctx.strokeStyle = 'rgba(200,230,255,0.7)';
+        ctx.lineWidth = 0.7;
+        for (let a = 0; a < 6; a++) {
+          const ax = Math.cos((a / 6) * Math.PI * 2) * s.r * 1.8;
+          const ay = Math.sin((a / 6) * Math.PI * 2) * s.r * 1.8;
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(s.x + ax, s.y + ay);
+          ctx.stroke();
+        }
+      }
+    });
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  renderIceCrystals() {
+    const ctx = this.ctx;
+    ctx.save();
+    this.icecrystals.forEach(ic => {
+      ctx.save();
+      ctx.translate(ic.x, ic.y);
+      ctx.rotate(ic.angle);
+      const shimmer = 0.4 + Math.sin(this.animTime * 0.003 + ic.x * 0.01) * 0.2;
+      ctx.globalAlpha = shimmer;
+
+      // Crystal spike pattern
+      const crystalGrad = ctx.createLinearGradient(-ic.size, 0, ic.size, 0);
+      crystalGrad.addColorStop(0, 'rgba(160,220,255,0.2)');
+      crystalGrad.addColorStop(0.5, 'rgba(220,240,255,0.9)');
+      crystalGrad.addColorStop(1, 'rgba(160,220,255,0.2)');
+      ctx.fillStyle = crystalGrad;
+      ctx.strokeStyle = 'rgba(180,230,255,0.8)';
+      ctx.lineWidth = 0.8;
+      for (let a = 0; a < 6; a++) {
+        ctx.save();
+        ctx.rotate((a / 6) * Math.PI * 2);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, -ic.size);
+        ctx.lineTo(ic.size * 0.15, -ic.size * 0.6);
+        ctx.moveTo(0, -ic.size);
+        ctx.lineTo(-ic.size * 0.15, -ic.size * 0.6);
+        ctx.stroke();
+        // Side branches
+        ctx.beginPath();
+        ctx.moveTo(0, -ic.size * 0.4);
+        ctx.lineTo(ic.size * 0.2, -ic.size * 0.25);
+        ctx.moveTo(0, -ic.size * 0.4);
+        ctx.lineTo(-ic.size * 0.2, -ic.size * 0.25);
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+    });
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  updatePolarBears(dt: number) {
+    if (!this.snakeAlive) return;
+    const head = this.snake[0];
+    const headPx = head.x * this.config.cellSize;
+    const headPy = head.y * this.config.cellSize;
+
+    this.polarBears.forEach(b => {
+      b.stepTimer += dt;
+      b.animFrame = Math.floor(b.stepTimer / 200) % 4;
+      if (b.flashTimer > 0) b.flashTimer -= dt;
+      if (b.roarTimer > 0) b.roarTimer -= dt;
+
+      const dx = headPx - b.x;
+      const dy = headPy - b.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (b.state === 'patrol') {
+        // Move along patrol path
+        const target = b.patrolPath[b.patrolIndex];
+        const tdx = target.x - b.x;
+        const tdy = target.y - b.y;
+        const tlen = Math.sqrt(tdx * tdx + tdy * tdy) || 1;
+        const speed = 0.8 * (dt / 16);
+        b.x += (tdx / tlen) * speed;
+        b.y += (tdy / tlen) * speed;
+        b.direction = tdx > 0 ? 'right' : 'left';
+        if (tlen < 12) b.patrolIndex = (b.patrolIndex + 1) % b.patrolPath.length;
+
+        // Detect snake
+        if (dist < b.sightRange) {
+          b.state = 'alert';
+          b.alertTimer = 800;
+          b.roarTimer = 1200;
+        }
+      } else if (b.state === 'alert') {
+        b.alertTimer -= dt;
+        if (b.alertTimer <= 0) b.state = 'chase';
+        if (dist > b.sightRange * 1.4) b.state = 'patrol';
+      } else if (b.state === 'chase') {
+        // Chase snake — slower than hunter but relentless
+        const len = Math.max(dist, 1);
+        const speed = 1.6 * (dt / 16);
+        b.x += (dx / len) * speed;
+        b.y += (dy / len) * speed;
+        b.direction = dx > 0 ? 'right' : 'left';
+
+        // Kill on touch
+        if (dist < 32 && this.snakeAlive) {
+          this.killedBy = 'hunter';
+          this.killSnake(null);
+        }
+        // Back off when snake escapes
+        if (dist > b.sightRange * 1.8) {
+          b.state = 'patrol';
+          b.flashTimer = 0;
+        }
+        b.flashTimer = 300;
+      }
+
+      b.x = Math.max(40, Math.min(this.worldWidth - 40, b.x));
+      b.y = Math.max(40, Math.min(this.worldHeight - 40, b.y));
+    });
+  }
+
+  renderPolarBearSightCones() {
+    const ctx = this.ctx;
+    this.polarBears.forEach(b => {
+      if (b.state === 'patrol') {
+        const pulse = 0.05 + Math.sin(this.animTime * 0.003) * 0.02;
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = '#aaccff';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.sightRange, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = '#88aadd';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.sightRange, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#aaddff';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('🐾 BEAR ZONE', b.x, b.y - b.sightRange - 6);
+        ctx.restore();
+      } else if (b.state === 'alert' || b.state === 'chase') {
+        const pulse = 0.5 + Math.sin(this.animTime * 0.006) * 0.4;
+        ctx.save();
+        ctx.globalAlpha = 0.15 + pulse * 0.1;
+        ctx.fillStyle = b.state === 'chase' ? '#ff6644' : '#ffaa44';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.sightRange, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.8;
+        ctx.strokeStyle = b.state === 'chase' ? '#ff4422' : '#ffaa22';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 5]);
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.sightRange, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = b.state === 'chase' ? '#ff3300' : '#ffaa00';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.state === 'chase' ? '🐻‍❄️ CHASING!' : '🐻‍❄️ ALERT!', b.x, b.y - b.sightRange - 6);
+        ctx.restore();
+      }
+    });
+  }
+
+  renderPolarBears() {
+    const ctx = this.ctx;
+    const t = this.animTime * 0.005;
+    this.polarBears.forEach(b => {
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      if (b.direction === 'left') ctx.scale(-1, 1);
+
+      const isChasing = b.state === 'chase';
+      const walkBob = isChasing ? Math.sin(t * 6 + b.id) * 3 : Math.sin(t * 3 + b.id) * 1.5;
+      const legSwing = Math.sin(t * (isChasing ? 6 : 3) + b.id) * 0.5;
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,40,80,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(0, 26, 18, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.translate(0, walkBob);
+
+      // Legs — thick, bear-like
+      const legCol = isChasing ? '#e0d8d0' : '#f0ece8';
+      ctx.fillStyle = legCol;
+      ctx.save(); ctx.rotate(legSwing);
+      ctx.beginPath(); ctx.ellipse(-7, 16, 5, 10, 0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.save(); ctx.rotate(-legSwing);
+      ctx.beginPath(); ctx.ellipse(7, 16, 5, 10, -0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+      // Paws
+      ctx.fillStyle = '#d0c8c0';
+      ctx.beginPath();
+      ctx.ellipse(-7, 25, 7, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(7, 25, 7, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Claws
+      ctx.strokeStyle = '#a09088';
+      ctx.lineWidth = 1;
+      for (let cl = -2; cl <= 2; cl += 2) {
+        ctx.beginPath();
+        ctx.moveTo(-7 + cl, 27);
+        ctx.lineTo(-7 + cl, 31);
+        ctx.moveTo(7 + cl, 27);
+        ctx.lineTo(7 + cl, 31);
+        ctx.stroke();
+      }
+
+      // Body — large, round, white polar bear
+      const bodyGrad = ctx.createRadialGradient(-5, -4, 2, 0, 0, 18);
+      bodyGrad.addColorStop(0, isChasing ? '#fff' : '#f8f4f0');
+      bodyGrad.addColorStop(0.5, isChasing ? '#eeeae6' : '#e8e4e0');
+      bodyGrad.addColorStop(1, '#c8c0b8');
+      ctx.fillStyle = bodyGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 4, 16, 18, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#b8b0a8';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
+      // Arm (front right)
+      ctx.fillStyle = '#f0ece8';
+      ctx.beginPath();
+      ctx.ellipse(14, 2, 5, 10, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head — big round bear head
+      const headGrad = ctx.createRadialGradient(-4, -18, 2, 0, -16, 12);
+      headGrad.addColorStop(0, '#fff');
+      headGrad.addColorStop(0.6, '#f0ece8');
+      headGrad.addColorStop(1, '#d0c8c0');
+      ctx.fillStyle = headGrad;
+      ctx.beginPath();
+      ctx.arc(0, -16, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#b8b0a8';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
+      // Ears — round
+      ctx.fillStyle = '#e8e4e0';
+      ctx.beginPath();
+      ctx.arc(-9, -26, 5, 0, Math.PI * 2);
+      ctx.arc(9, -26, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#d0b0a8';
+      ctx.beginPath();
+      ctx.arc(-9, -26, 3, 0, Math.PI * 2);
+      ctx.arc(9, -26, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eyes — beady black
+      ctx.fillStyle = isChasing ? '#880000' : '#2a2020';
+      ctx.beginPath();
+      ctx.arc(-4, -18, 2.5, 0, Math.PI * 2);
+      ctx.arc(4, -18, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(-3.2, -18.6, 0.9, 0, Math.PI * 2);
+      ctx.arc(4.8, -18.6, 0.9, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Snout
+      const snoutGrad = ctx.createRadialGradient(-1, -13, 0.5, 0, -12, 5);
+      snoutGrad.addColorStop(0, '#e8d8c8');
+      snoutGrad.addColorStop(1, '#c8b8a8');
+      ctx.fillStyle = snoutGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, -12, 5, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Nose
+      ctx.fillStyle = '#3a2a28';
+      ctx.beginPath();
+      ctx.ellipse(0, -13.5, 2.5, 1.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Open mouth when chasing — roaring
+      if (isChasing) {
+        ctx.fillStyle = '#c03020';
+        ctx.beginPath();
+        ctx.ellipse(0, -10, 4, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(-2.5, -10.5, 1.2, 0, Math.PI * 2);
+        ctx.arc(2.5, -10.5, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Roar cloud / breath fog
+        if (b.roarTimer > 0) {
+          const roarAlpha = Math.min(1, b.roarTimer / 600) * 0.5;
+          ctx.globalAlpha = roarAlpha;
+          ctx.fillStyle = '#ddeeff';
+          ctx.beginPath();
+          ctx.arc(22, -14, 8, 0, Math.PI * 2);
+          ctx.arc(32, -12, 6, 0, Math.PI * 2);
+          ctx.arc(28, -20, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+
+        // Red flash warning
+        if (b.flashTimer > 0) {
+          ctx.globalAlpha = (b.flashTimer / 300) * 0.3;
+          ctx.fillStyle = '#ff2200';
+          ctx.beginPath();
+          ctx.arc(0, -6, 22, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      ctx.restore();
+    });
+  }
+
+  // ===== ARCTIC ANIMALS =====
+  drawFish(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const swim = Math.sin(t * 4 + offset) * 4;
+    const tail = Math.sin(t * 6 + offset) * 0.4;
+    ctx.save();
+    ctx.translate(swim * 0.3, 0);
+
+    // Tail fin
+    ctx.save();
+    ctx.rotate(tail);
+    ctx.fillStyle = '#1a7acc';
+    ctx.beginPath();
+    ctx.moveTo(12, 0);
+    ctx.lineTo(22, -8);
+    ctx.lineTo(22, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Body — blue-silver gradient
+    const bodyGrad = ctx.createLinearGradient(-12, -6, 12, 6);
+    bodyGrad.addColorStop(0, '#2a9aee');
+    bodyGrad.addColorStop(0.4, '#1a7acc');
+    bodyGrad.addColorStop(1, '#0a4a8a');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 13, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Silver sheen
+    ctx.fillStyle = 'rgba(200,240,255,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(-3, -3, 7, 3, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Scales
+    ctx.strokeStyle = 'rgba(10,60,120,0.3)';
+    ctx.lineWidth = 0.7;
+    for (let s = 0; s < 4; s++) {
+      ctx.beginPath();
+      ctx.arc(-6 + s * 4, 0, 3, 0, Math.PI);
+      ctx.stroke();
+    }
+
+    // Dorsal fin
+    ctx.fillStyle = '#1a7acc';
+    ctx.beginPath();
+    ctx.moveTo(-4, -6);
+    ctx.lineTo(-2, -13);
+    ctx.lineTo(4, -6);
+    ctx.closePath();
+    ctx.fill();
+
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-9, -1, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(-9, -1, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-8.2, -1.6, 0.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  drawSeal(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const bob = Math.sin(t * 2 + offset) * 2;
+    ctx.save();
+    ctx.translate(0, bob);
+
+    // Body — fat, grey, sleek
+    const bodyGrad = ctx.createRadialGradient(-4, -2, 2, 0, 2, 14);
+    bodyGrad.addColorStop(0, '#b8b8c0');
+    bodyGrad.addColorStop(0.5, '#909098');
+    bodyGrad.addColorStop(1, '#606068');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 10, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#505058';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Belly — light patch
+    ctx.fillStyle = '#d8d8e0';
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 6, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Flippers
+    ctx.fillStyle = '#707078';
+    ctx.beginPath();
+    ctx.ellipse(-12, 8, 8, 4, -0.4, 0, Math.PI * 2);
+    ctx.ellipse(12, 8, 8, 4, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tail flipper
+    ctx.fillStyle = '#606068';
+    ctx.beginPath();
+    ctx.moveTo(-6, 19);
+    ctx.lineTo(-10, 25);
+    ctx.lineTo(0, 22);
+    ctx.lineTo(10, 25);
+    ctx.lineTo(6, 19);
+    ctx.closePath();
+    ctx.fill();
+
+    // Head
+    const headGrad = ctx.createRadialGradient(-3, -10, 1, 0, -9, 9);
+    headGrad.addColorStop(0, '#c0c0c8');
+    headGrad.addColorStop(1, '#808088');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -8, 8, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Big round eyes
+    ctx.fillStyle = '#1a1a2a';
+    ctx.beginPath();
+    ctx.arc(-4, -10, 3.5, 0, Math.PI * 2);
+    ctx.arc(4, -10, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-3, -11, 1.3, 0, Math.PI * 2);
+    ctx.arc(5, -11, 1.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Nose & whiskers
+    ctx.fillStyle = '#2a1a1a';
+    ctx.beginPath();
+    ctx.ellipse(0, -4, 2.5, 1.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 0.7;
+    for (let w = -1; w <= 1; w += 2) {
+      ctx.beginPath();
+      ctx.moveTo(w * 2, -4);
+      ctx.lineTo(w * 13, -3);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  drawPenguin(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const waddle = Math.sin(t * 3 + offset) * 0.15;
+    ctx.save();
+    ctx.rotate(waddle);
+
+    // Body — black back
+    ctx.fillStyle = '#1a1a2a';
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 9, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // White belly
+    ctx.fillStyle = '#f0f0f8';
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 6, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Flippers
+    ctx.fillStyle = '#1a1a2a';
+    const flipAngle = Math.sin(t * 3 + offset) * 0.3;
+    ctx.save();
+    ctx.rotate(-flipAngle);
+    ctx.beginPath();
+    ctx.ellipse(-11, 4, 5, 9, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.rotate(flipAngle);
+    ctx.beginPath();
+    ctx.ellipse(11, 4, 5, 9, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Feet
+    ctx.fillStyle = '#e08020';
+    ctx.beginPath();
+    ctx.ellipse(-5, 18, 5, 3, -0.2, 0, Math.PI * 2);
+    ctx.ellipse(5, 18, 5, 3, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = '#1a1a2a';
+    ctx.beginPath();
+    ctx.arc(0, -9, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // White face patch
+    ctx.fillStyle = '#f0f0f8';
+    ctx.beginPath();
+    ctx.ellipse(0, -8, 6, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes
+    ctx.fillStyle = '#1a1a2a';
+    ctx.beginPath();
+    ctx.arc(-3.5, -11, 2.5, 0, Math.PI * 2);
+    ctx.arc(3.5, -11, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-2.8, -11.6, 0.9, 0, Math.PI * 2);
+    ctx.arc(4.2, -11.6, 0.9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beak
+    ctx.fillStyle = '#e08020';
+    ctx.beginPath();
+    ctx.moveTo(-2, -5);
+    ctx.lineTo(2, -5);
+    ctx.lineTo(0, -1);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  drawArcticFox(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const trot = Math.sin(t * 5 + offset) * 2.5;
+    const legSwing = Math.sin(t * 5 + offset) * 0.4;
+    ctx.save();
+    ctx.translate(0, -trot * 0.3);
+
+    // Big fluffy tail
+    const tailWag = Math.sin(t * 3 + offset) * 0.3;
+    ctx.save();
+    ctx.rotate(tailWag + 0.4);
+    const tailGrad = ctx.createRadialGradient(0, 10, 2, 4, 14, 12);
+    tailGrad.addColorStop(0, '#ffffff');
+    tailGrad.addColorStop(0.6, '#f0ece8');
+    tailGrad.addColorStop(1, '#e0dcd8');
+    ctx.fillStyle = tailGrad;
+    ctx.beginPath();
+    ctx.ellipse(4, 14, 10, 7, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(10, 10, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Legs
+    ctx.fillStyle = '#e8e8f0';
+    ctx.save(); ctx.rotate(legSwing);
+    ctx.fillRect(-6, 7, 4, 10);
+    ctx.restore();
+    ctx.save(); ctx.rotate(-legSwing);
+    ctx.fillRect(2, 7, 4, 10);
+    ctx.restore();
+    ctx.fillStyle = '#c8c8d0';
+    ctx.fillRect(-7, 16, 5, 3);
+    ctx.fillRect(1, 16, 5, 3);
+
+    // Body — white/cream
+    const bodyGrad = ctx.createRadialGradient(-3, 0, 1, 0, 2, 11);
+    bodyGrad.addColorStop(0, '#ffffff');
+    bodyGrad.addColorStop(0.5, '#f0ece8');
+    bodyGrad.addColorStop(1, '#d8d4d0');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 9, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head — triangular foxy
+    ctx.fillStyle = '#f0ece8';
+    ctx.beginPath();
+    ctx.ellipse(0, -9, 7, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pointed ears
+    ctx.fillStyle = '#e0dcd8';
+    ctx.beginPath();
+    ctx.moveTo(-6, -14);
+    ctx.lineTo(-9, -22);
+    ctx.lineTo(-2, -15);
+    ctx.closePath();
+    ctx.moveTo(6, -14);
+    ctx.lineTo(9, -22);
+    ctx.lineTo(2, -15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f0a0a0';
+    ctx.beginPath();
+    ctx.moveTo(-6, -14.5);
+    ctx.lineTo(-8.5, -21);
+    ctx.lineTo(-2.5, -15.5);
+    ctx.closePath();
+    ctx.moveTo(6, -14.5);
+    ctx.lineTo(8.5, -21);
+    ctx.lineTo(2.5, -15.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Eyes — electric blue
+    ctx.fillStyle = '#44aaff';
+    ctx.beginPath();
+    ctx.arc(-3, -10, 2.5, 0, Math.PI * 2);
+    ctx.arc(3, -10, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1a1a2a';
+    ctx.beginPath();
+    ctx.arc(-3, -10, 1.3, 0, Math.PI * 2);
+    ctx.arc(3, -10, 1.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-2.4, -10.6, 0.5, 0, Math.PI * 2);
+    ctx.arc(3.6, -10.6, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pointed snout
+    ctx.fillStyle = '#d8d4d0';
+    ctx.beginPath();
+    ctx.moveTo(-3, -6);
+    ctx.lineTo(3, -6);
+    ctx.lineTo(0, -2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#2a1a1a';
+    ctx.beginPath();
+    ctx.arc(0, -3, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  drawSnowOwl(ctx: CanvasRenderingContext2D, t: number, offset: number) {
+    const bob = Math.sin(t * 2 + offset) * 2;
+    const wingFlap = Math.sin(t * 5 + offset) * 0.35;
+    ctx.save();
+    ctx.translate(0, bob);
+
+    // Wings
+    ctx.save();
+    ctx.rotate(-wingFlap);
+    ctx.fillStyle = '#f0ece8';
+    ctx.beginPath();
+    ctx.ellipse(-14, -2, 14, 6, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Wing pattern — dark speckles
+    ctx.fillStyle = 'rgba(80,80,100,0.3)';
+    for (let s = 0; s < 5; s++) {
+      ctx.beginPath();
+      ctx.ellipse(-10 - s * 2, -2 + (s % 2), 2, 1, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.rotate(wingFlap);
+    ctx.fillStyle = '#f0ece8';
+    ctx.beginPath();
+    ctx.ellipse(14, -2, 14, 6, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(80,80,100,0.3)';
+    for (let s = 0; s < 5; s++) {
+      ctx.beginPath();
+      ctx.ellipse(10 + s * 2, -2 + (s % 2), 2, 1, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Body — round, fluffy white
+    const bodyGrad = ctx.createRadialGradient(-3, -2, 2, 0, 2, 12);
+    bodyGrad.addColorStop(0, '#fff');
+    bodyGrad.addColorStop(0.5, '#f0ece8');
+    bodyGrad.addColorStop(1, '#d8d4d0');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 10, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Feather marks
+    ctx.strokeStyle = 'rgba(100,100,120,0.2)';
+    ctx.lineWidth = 0.8;
+    for (let f = 0; f < 5; f++) {
+      ctx.beginPath();
+      ctx.arc(0, -4 + f * 4, 8, 0.3, Math.PI - 0.3);
+      ctx.stroke();
+    }
+
+    // Talons
+    ctx.strokeStyle = '#8a8078';
+    ctx.lineWidth = 1.2;
+    for (let tl = -1; tl <= 1; tl++) {
+      ctx.beginPath();
+      ctx.moveTo(tl * 4, 16);
+      ctx.lineTo(tl * 4 - 3, 22);
+      ctx.moveTo(tl * 4, 16);
+      ctx.lineTo(tl * 4 + 3, 22);
+      ctx.stroke();
+    }
+
+    // Head — round
+    const headGrad = ctx.createRadialGradient(-3, -12, 1, 0, -11, 10);
+    headGrad.addColorStop(0, '#fff');
+    headGrad.addColorStop(0.5, '#f0ece8');
+    headGrad.addColorStop(1, '#c8c4c0');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.arc(0, -10, 10, 0, Math.PI * 2);
+    ctx.fill();
+    // Facial disc
+    ctx.strokeStyle = 'rgba(100,100,120,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, -10, 8, 0, Math.PI * 2);
+    ctx.stroke();
+    // Ear tufts
+    ctx.fillStyle = '#d0ccc8';
+    ctx.beginPath();
+    ctx.moveTo(-5, -19);
+    ctx.lineTo(-7, -25);
+    ctx.lineTo(-2, -20);
+    ctx.closePath();
+    ctx.moveTo(5, -19);
+    ctx.lineTo(7, -25);
+    ctx.lineTo(2, -20);
+    ctx.closePath();
+    ctx.fill();
+
+    // Large yellow eyes
+    ctx.fillStyle = '#f0c020';
+    ctx.beginPath();
+    ctx.arc(-4, -11, 4, 0, Math.PI * 2);
+    ctx.arc(4, -11, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1a1020';
+    ctx.beginPath();
+    ctx.arc(-4, -11, 2.5, 0, Math.PI * 2);
+    ctx.arc(4, -11, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-3.2, -11.8, 1, 0, Math.PI * 2);
+    ctx.arc(4.8, -11.8, 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Hooked beak
+    ctx.fillStyle = '#c0a030';
+    ctx.beginPath();
+    ctx.moveTo(-2, -8);
+    ctx.lineTo(2, -8);
+    ctx.lineTo(1, -4);
+    ctx.lineTo(0, -3);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
   }
 
   renderEagleShadows() {
@@ -2027,9 +3131,56 @@ export class GameEngineService {
           ctx.stroke();
         }
 
+      } else if (tree.type === 4) {
+        // ── Type 4: Arctic ice rock / ice spire ──────────────────────────
+        const iceRockH = (30 + tree.scale * 20);
+        const iceRockW = (20 + tree.scale * 15);
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,40,80,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(6, 4, iceRockW * 0.9, iceRockH * 0.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Main ice rock body
+        const iceGrad = ctx.createLinearGradient(-iceRockW, -iceRockH, iceRockW, 0);
+        iceGrad.addColorStop(0, '#9ecce8');
+        iceGrad.addColorStop(0.3, '#d4eef8');
+        iceGrad.addColorStop(0.6, '#b8d8f0');
+        iceGrad.addColorStop(1, '#7ab0d8');
+        ctx.fillStyle = iceGrad;
+        ctx.beginPath();
+        ctx.moveTo(0, -iceRockH);
+        ctx.lineTo(-iceRockW * 0.5, -iceRockH * 0.6);
+        ctx.lineTo(-iceRockW * 0.7, -iceRockH * 0.3);
+        ctx.lineTo(-iceRockW * 0.4, 0);
+        ctx.lineTo(iceRockW * 0.4, 0);
+        ctx.lineTo(iceRockW * 0.7, -iceRockH * 0.3);
+        ctx.lineTo(iceRockW * 0.5, -iceRockH * 0.6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(120,180,220,0.6)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Snow cap on top
+        ctx.fillStyle = 'rgba(240,248,255,0.9)';
+        ctx.beginPath();
+        ctx.ellipse(0, -iceRockH, iceRockW * 0.4, iceRockH * 0.12, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ice shimmer lines
+        ctx.strokeStyle = 'rgba(200,240,255,0.5)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(-iceRockW * 0.2, -iceRockH * 0.8);
+        ctx.lineTo(-iceRockW * 0.5, -iceRockH * 0.2);
+        ctx.moveTo(iceRockW * 0.1, -iceRockH * 0.7);
+        ctx.lineTo(iceRockW * 0.4, -iceRockH * 0.1);
+        ctx.stroke();
+
       } else {
         // ── Type 2: Tall emergent jungle tree with umbrella crown ─────────
-        // Cast shadow
         ctx.fillStyle = 'rgba(0,0,0,0.18)';
         ctx.beginPath();
         ctx.ellipse(10, 18, 52 * tree.scale, 14 * tree.scale, 0, 0, Math.PI * 2);
@@ -2138,6 +3289,12 @@ export class GameEngineService {
         case 'cockroach': this.drawCockroach(ctx, t, a.bobOffset); break;
         case 'worm':      this.drawWorm(ctx, t, a.bobOffset); break;
         case 'cricket':   this.drawCricket(ctx, t, a.bobOffset); break;
+        // Arctic animals
+        case 'fish':      this.drawFish(ctx, t, a.bobOffset); break;
+        case 'seal':      this.drawSeal(ctx, t, a.bobOffset); break;
+        case 'penguin':   this.drawPenguin(ctx, t, a.bobOffset); break;
+        case 'arcticfox': this.drawArcticFox(ctx, t, a.bobOffset); break;
+        case 'snowowl':   this.drawSnowOwl(ctx, t, a.bobOffset); break;
       }
 
       // Pulsing attract ring
@@ -3612,14 +4769,14 @@ export class GameEngineService {
     ctx.fillText(`🐾 Prey: ${alive}`, W / 2, row2);
 
     // Win progress — animals eaten / threshold
-    const winThreshold = this.level === 1 ? 15 : 25;
-    const hudLabel = this.level === 1 ? '🎯 Eaten' : '🦟 Insects';
+    const winThreshold = this.level === 3 ? 30 : this.level === 2 ? 25 : 15;
+    const hudLabel = this.level === 3 ? '❄️ Creatures' : this.level === 2 ? '🦟 Insects' : '🎯 Eaten';
     ctx.fillStyle = '#ffd700';
     ctx.textAlign = 'right';
     ctx.fillText(`${hudLabel}: ${this.animalsEaten}/${winThreshold}`, W - pad, row1);
 
     // Level indicator
-    ctx.fillStyle = this.level === 2 ? '#ffa040' : '#8f8';
+    ctx.fillStyle = this.level === 3 ? '#88ccff' : this.level === 2 ? '#ffa040' : '#8f8';
     ctx.fillText(`LVL ${this.level}`, W - pad, row2);
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
     ctx.font = `${smallFontSize}px monospace`;

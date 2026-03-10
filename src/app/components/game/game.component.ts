@@ -109,6 +109,20 @@ import { GameEngineService } from '../../services/game-engine.service';
                   {{ engine.level2Unlocked ? 'PLAY' : '🔒' }}
                 </span>
               </button>
+              <button class="level-btn level-btn-3"
+                [class.locked]="!engine.level3Unlocked"
+                [disabled]="!engine.level3Unlocked"
+                (click)="engine.level3Unlocked && startLevel3()">
+                <span class="level-icon">🏔️</span>
+                <div class="level-btn-info">
+                  <div class="level-btn-name">Level 3</div>
+                  <div class="level-btn-desc" *ngIf="engine.level3Unlocked">Arctic — Eat 30 creatures</div>
+                  <div class="level-btn-desc locked-desc" *ngIf="!engine.level3Unlocked">Complete Level 2 to Unlock</div>
+                </div>
+                <span class="level-status" [class.unlocked-badge]="engine.level3Unlocked" [class.locked-badge]="!engine.level3Unlocked">
+                  {{ engine.level3Unlocked ? 'PLAY' : '🔒' }}
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -130,16 +144,23 @@ import { GameEngineService } from '../../services/game-engine.service';
         </div>
       </div>
 
-      <!-- LEVEL TRANSITION SCREEN (Level 1 Complete to Level 2) -->
+      <!-- LEVEL TRANSITION SCREEN (Level Complete → Next Level) -->
       <div class="screen level-transition-screen" *ngIf="engine.gameState === 'level-transition'">
         <div class="level-transition-content">
-          <div class="level-badge">⭐ LEVEL 1 COMPLETE ⭐</div>
-          <h1 class="transition-title">🏜️ Desert Awaits!</h1>
-          <p class="transition-subtitle">You conquered the jungle!<br>Now survive the scorching desert...</p>
+          <div class="level-badge">⭐ LEVEL {{ engine.level }} COMPLETE ⭐</div>
+          <h1 class="transition-title">{{ engine.level === 1 ? '🏜️ Desert Awaits!' : '❄️ Arctic Awaits!' }}</h1>
+          <p class="transition-subtitle">{{ engine.level === 1 ? 'You conquered the jungle! Now survive the scorching desert...' : 'You survived the desert! Now brave the frozen arctic tundra...' }}</p>
           <div class="transition-warning">
-            <div class="warning-eagle">🦅 Eagles patrol the sky!</div>
-            <div class="warning-eagle">�� Eat 25 insects to win!</div>
-            <div class="warning-eagle">⚠️ Enter an eagle shadow = Death!</div>
+            <ng-container *ngIf="engine.level === 1">
+              <div class="warning-eagle">🦅 Eagles patrol the sky!</div>
+              <div class="warning-eagle">🦟 Eat 25 insects to win!</div>
+              <div class="warning-eagle">⚠️ Enter an eagle shadow = Death!</div>
+            </ng-container>
+            <ng-container *ngIf="engine.level === 2">
+              <div class="warning-eagle">🐻‍❄️ Polar Bears roam the ice!</div>
+              <div class="warning-eagle">🐟 Eat 30 arctic creatures to win!</div>
+              <div class="warning-eagle">❄️ Blizzard conditions ahead!</div>
+            </ng-container>
           </div>
           <div class="win-stats">
             <div class="stat-box">
@@ -147,14 +168,14 @@ import { GameEngineService } from '../../services/game-engine.service';
               <div class="stat-label">Score So Far</div>
             </div>
             <div class="stat-box">
-              <div class="stat-value">15</div>
-              <div class="stat-label">Animals Eaten</div>
+              <div class="stat-value">{{ engine.level === 1 ? 15 : 25 }}</div>
+              <div class="stat-label">{{ engine.level === 1 ? 'Animals Eaten' : 'Insects Eaten' }}</div>
             </div>
           </div>
-          <button class="start-btn desert-btn" (click)="startLevel2()">
-            <span class="btn-icon">🏜️</span>
-            ENTER THE DESERT
-            <span class="btn-icon">🦅</span>
+          <button class="start-btn desert-btn" (click)="engine.level === 1 ? startLevel2() : startLevel3()">
+            <span class="btn-icon">{{ engine.level === 1 ? '🏜️' : '❄️' }}</span>
+            {{ engine.level === 1 ? 'ENTER THE DESERT' : 'ENTER THE ARCTIC' }}
+            <span class="btn-icon">{{ engine.level === 1 ? '🦅' : '🐻‍❄️' }}</span>
           </button>
         </div>
       </div>
@@ -169,9 +190,9 @@ import { GameEngineService } from '../../services/game-engine.service';
             [style.animation-duration]="c.duration + 's'"></div>
         </div>
         <div class="win-content">
-          <div class="win-trophy">{{ engine.level === 2 ? '🏆' : '🏆' }}</div>
-          <h1 class="win-title">{{ engine.level === 2 ? 'DESERT CONQUERED!' : 'YOU WON!' }}</h1>
-          <p class="win-subtitle">{{ engine.level === 2 ? '25 insects devoured — the desert bows to you!' : '15 animals devoured — the jungle bows to you!' }}</p>
+          <div class="win-trophy">🏆</div>
+          <h1 class="win-title">{{ engine.level === 3 ? '❄️ ARCTIC CONQUERED!' : engine.level === 2 ? '🏜️ DESERT CONQUERED!' : '🌴 JUNGLE CONQUERED!' }}</h1>
+          <p class="win-subtitle">{{ engine.level === 3 ? '30 arctic creatures — the frozen north bows to you!' : engine.level === 2 ? '25 insects devoured — the desert bows to you!' : '15 animals devoured — the jungle bows to you!' }}</p>
           <div class="win-stats">
             <div class="stat-box">
               <div class="stat-value">{{ engine.score }}</div>
@@ -179,7 +200,7 @@ import { GameEngineService } from '../../services/game-engine.service';
             </div>
             <div class="stat-box">
               <div class="stat-value">{{ engine.animalsEaten }}</div>
-              <div class="stat-label">{{ engine.level === 2 ? 'Insects' : 'Eaten' }}</div>
+              <div class="stat-label">{{ engine.level === 3 ? 'Creatures' : engine.level === 2 ? 'Insects' : 'Eaten' }}</div>
             </div>
             <div class="stat-box">
               <div class="stat-value">{{ engine.highScore }}</div>
@@ -187,7 +208,7 @@ import { GameEngineService } from '../../services/game-engine.service';
             </div>
           </div>
           <div class="win-buttons">
-            <button class="play-again-btn" (click)="engine.level === 2 ? startLevel2() : startGame()">🔄 Play Again</button>
+            <button class="play-again-btn" (click)="engine.level === 3 ? startLevel3() : engine.level === 2 ? startLevel2() : startGame()">🔄 Play Again</button>
             <button class="menu-btn" (click)="goToMenu()">🏠 Menu</button>
           </div>
         </div>
@@ -288,7 +309,7 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   handleWin() {
-    if (this.engine.level === 1) {
+    if (this.engine.level === 1 || this.engine.level === 2) {
       this.engine.gameState = 'level-transition';
       this.cdr.detectChanges();
     } else {
@@ -305,6 +326,23 @@ export class GameComponent implements OnInit, AfterViewInit, OnDestroy {
     this.engine.onGoMenu    = () => { this.zone.run(() => this.goToMenu()); };
     this.engine.onWin       = () => { this.zone.run(() => this.handleWin()); };
     this.engine.startLevel2();
+    this.cdr.detectChanges();
+    setTimeout(() => {
+      if (this.canvasRef?.nativeElement) {
+        this.engine.canvas = this.canvasRef.nativeElement;
+        this.engine.ctx    = this.canvasRef.nativeElement.getContext('2d')!;
+      }
+    }, 30);
+  }
+
+  startLevel3() {
+    this.resizeCanvas();
+    this.showSwipeHint = true;
+    setTimeout(() => { this.showSwipeHint = false; this.cdr.markForCheck(); }, 3000);
+    this.engine.onPlayAgain = () => { this.zone.run(() => this.startLevel3()); };
+    this.engine.onGoMenu    = () => { this.zone.run(() => this.goToMenu()); };
+    this.engine.onWin       = () => { this.zone.run(() => this.handleWin()); };
+    this.engine.startLevel3();
     this.cdr.detectChanges();
     setTimeout(() => {
       if (this.canvasRef?.nativeElement) {
