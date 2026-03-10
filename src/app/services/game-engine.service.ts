@@ -394,11 +394,11 @@ export class GameEngineService {
         patrolCy: cy,
         patrolRadius: radius,
         patrolAngle: startAngle,
-        sightRange: 160 + Math.random() * 40,  // large detect range
+        sightRange: 90 + Math.random() * 30,    // moderate detect range — not too aggressive
         killRange: 28,                           // tiny kill radius — snake must be very close
         state: 'patrol',
         wingPhase: Math.random() * Math.PI * 2,
-        chaseSpeed: 2.2 + Math.random() * 0.6
+        chaseSpeed: 1.4 + Math.random() * 0.4   // slower chase — more forgiving
       });
     }
   }
@@ -504,17 +504,17 @@ export class GameEngineService {
         }
 
       } else if (e.state === 'chase') {
-        // Dive toward snake position fast
+        // Dive toward snake position — moderate speed (not instant)
         const spd = e.chaseSpeed * (dt / 16);
         const len = Math.max(dist, 1);
-        e.x += (dx / len) * spd * 8;
-        e.y += (dy / len) * spd * 8;
+        e.x += (dx / len) * spd * 5;
+        e.y += (dy / len) * spd * 5;
         e.angle = Math.atan2(dy, dx);
         // Descend (lower altitude) to look like diving
-        e.altitude = Math.max(10, e.altitude - dt * 0.15);
+        e.altitude = Math.max(10, e.altitude - dt * 0.1);
 
-        // If snake escaped far enough → return to patrol
-        if (dist > e.sightRange * 1.5) {
+        // If snake escaped — return to patrol (smaller multiplier = easier to escape)
+        if (dist > e.sightRange * 1.2) {
           e.state = 'return';
         }
 

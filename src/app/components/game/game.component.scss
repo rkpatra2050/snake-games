@@ -138,7 +138,7 @@ $text-light: #e8f5e9;
   align-items: center;
   text-align: center;
   gap: 24px;
-  padding: 20px;
+  padding: 20px 20px 40px;
   max-width: 900px;
   width: 100%;
   margin: 0 auto;
@@ -765,7 +765,7 @@ $text-light: #e8f5e9;
 
   .menu-content {
     gap: 12px;
-    padding: 16px 10px 24px;
+    padding: 16px 10px 40px;
     max-width: 100%;
     width: 100%;
     min-height: fit-content;
@@ -884,6 +884,47 @@ $text-light: #e8f5e9;
     width: 100%;
     justify-content: center;
   }
+
+  // Level select — mobile
+  .level-select {
+    margin-top: 12px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .level-select-title {
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+
+  .level-buttons {
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .level-btn {
+    min-width: unset;
+    max-width: 100%;
+    width: 100%;
+    padding: 10px 14px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+
+  .level-icon {
+    font-size: 22px;
+  }
+
+  .level-btn-info {
+    .level-btn-name { font-size: 13px; }
+    .level-btn-desc { font-size: 10px; }
+  }
+
+  .level-status {
+    font-size: 10px;
+    padding: 3px 7px;
+  }
 }
 
 // ===========================
@@ -902,6 +943,15 @@ $text-light: #e8f5e9;
     font-size: 13px;
     padding: 10px 22px;
   }
+
+  .level-btn {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .level-icon { font-size: 18px; }
+  .level-btn-info .level-btn-name { font-size: 12px; }
+  .level-btn-info .level-btn-desc { font-size: 9px; }
 }
 
 
